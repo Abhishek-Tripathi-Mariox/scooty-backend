@@ -1,0 +1,431 @@
+module.exports = (lang = "en") => {
+  const user_already_found = {
+    en: "User already found with given username, Try again after new username!",
+  };
+
+  const success = {
+    en: "success",
+  };
+
+  const logout = {
+    en: "logout successfully",
+  };
+
+  const invalid_token = {
+    en: "invalid token",
+  };
+
+  const users_list = {
+    en: "users list",
+  };
+
+  const social_id_missing = {
+    en: "social Provider id is missing!",
+  };
+
+  const interest_exists = {
+    en: "you have added this interest before",
+  };
+
+  const user_not_found = {
+    en: "user detail not found with given id",
+  };
+
+  const forbidden = {
+    en: "forbidden",
+  };
+
+  const otp_sent = {
+    en: "otp send to your register mobile number",
+  };
+
+  const otp_verified = {
+    en: "login successfully",
+  };
+
+  const incorrect_otp = {
+    en: "incorrect otp, try again!",
+  };
+
+  // Scooty rental app flow
+  const profile_fetched = {
+    en: "profile fetched successfully",
+  };
+  const plans_list = {
+    en: "ride plans fetched successfully",
+  };
+  const stations_list = {
+    en: "stations fetched successfully",
+  };
+  const station_detail = {
+    en: "station detail fetched successfully",
+  };
+  const scooters_list = {
+    en: "scooters fetched successfully",
+  };
+  const scooter_detail = {
+    en: "scooter detail fetched successfully",
+  };
+  const time_slots_list = {
+    en: "time slots fetched successfully",
+  };
+  const booking_quote = {
+    en: "booking quote generated successfully",
+  };
+  const booking_created = {
+    en: "booking created successfully",
+  };
+  const booking_list = {
+    en: "bookings fetched successfully",
+  };
+  const booking_detail = {
+    en: "booking detail fetched successfully",
+  };
+  const payment_initiated = {
+    en: "payment initiated successfully",
+  };
+  const payment_confirmed = {
+    en: "payment status updated successfully",
+  };
+  const not_found = {
+    en: "not found",
+  };
+  const profile_updated = {
+    en: "profile updated successfully",
+  };
+  const offers_list = {
+    en: "offers fetched successfully",
+  };
+  const referral_fetched = {
+    en: "referral details fetched successfully",
+  };
+  const referral_applied = {
+    en: "referral applied successfully",
+  };
+  const offer_redeemed = {
+    en: "offer redeemed successfully",
+  };
+  const rewards_list = {
+    en: "rewards fetched successfully",
+  };
+  const notifications_list = {
+    en: "notifications fetched successfully",
+  };
+  const notification_read = {
+    en: "notification marked as read",
+  };
+  const faqs_list = {
+    en: "faqs fetched successfully",
+  };
+  const ticket_created = {
+    en: "support ticket created successfully",
+  };
+  const tickets_list = {
+    en: "support tickets fetched successfully",
+  };
+  const ticket_detail = {
+    en: "support ticket detail fetched successfully",
+  };
+  const ride_history = {
+    en: "ride history fetched successfully",
+  };
+  const ride_started = {
+    en: "ride started successfully",
+  };
+  const ride_completed = {
+    en: "ride completed successfully",
+  };
+  const receipt_generated = {
+    en: "receipt generated successfully",
+  };
+  const admin_login_success = {
+    en: "admin login successfully",
+  };
+  const qr_unlocked = {
+    en: "scooter unlocked successfully",
+  };
+
+  const status_changed = {
+    en: "status changed successfully",
+  };
+
+  const password_changed = {
+    en: "Password updated successfully. Please login with new password!",
+  };
+
+  const incorrect_password = {
+    en: "Entered password is incorrect!",
+  };
+
+  const invalid_credentials = {
+    en: "invalid credentials!",
+  };
+
+  const recent_activity_fetched = {
+    en: "Recent activity fetched successfully",
+  };
+
+  const dashboard_stats_fetched = {
+    en: "Dashboard statistics fetched successfully",
+  };
+
+  const user_status_updated = {
+    en: "User status updated successfully",
+  };
+
+  const password_reset_success = {
+    en: "Password reset successfully",
+  };
+
+  const kyc_updated = {
+    en: "KYC status updated successfully",
+  };
+
+  const rejection_reason_required = {
+    en: "Rejection reason is required",
+  };
+
+  const invalid_user_id = {
+    en: "Invalid user id",
+  };
+
+  const isActive_must_be_boolean = {
+    en: "isActive must be boolean (true or false)",
+  };
+
+  const competition_created = {
+    en: "Competition created successfully",
+  };
+
+  const competition_updated = {
+    en: "Competition updated successfully",
+  };
+
+  const competition_soft_deleted = {
+    en: "Competition cancelled successfully",
+  };
+
+  const competition_approved = {
+    en: "Competition approved successfully",
+  };
+
+  const competition_rejected = {
+    en: "Competition rejected successfully",
+  };
+
+  const competition_not_found = {
+    en: "Competition not found",
+  };
+
+  const only_created_can_be_approved = {
+    en: "Only newly created competitions can be approved",
+  };
+
+  const only_created_can_be_rejected = {
+    en: "Only newly created competitions can be rejected",
+  };
+
+  const winners_declared = {
+    en: "Winners declared successfully",
+  };
+
+  const winners_required = {
+    en: "Winners list is required",
+  };
+
+  const winners_already_declared = {
+    en: "Winners have already been declared",
+  };
+
+  const duplicate_ranks_not_allowed = {
+    en: "Duplicate ranks are not allowed",
+  };
+
+  const only_active_can_declare = {
+    en: "Only active competitions can declare winners",
+  };
+
+  const sponsor_created = {
+    en: "Sponsor created successfully",
+  };
+
+  const sponsor_updated = {
+    en: "Sponsor updated successfully",
+  };
+
+  const sponsor_deactivated = {
+    en: "Sponsor deactivated successfully",
+  };
+
+  const sponsor_not_found = {
+    en: "Sponsor not found",
+  };
+
+  const email_already_exists = {
+    en: "Email already exists",
+  };
+
+  const email_password_required = {
+    en: "Email and password are required",
+  };
+
+  const invalid_sponsor_id = {
+    en: "Invalid sponsor id",
+  };
+
+  const earnings_list = {
+    en: "Earnings list fetched successfully",
+  };
+
+  const winners_list = {
+    en: "Winners list fetched successfully",
+  };
+
+  const top_earners_list = {
+    en: "Top earners fetched successfully",
+  };
+
+  const report_updated = {
+    en: "Report status updated successfully",
+  };
+
+  const report_not_found = {
+    en: "Report not found",
+  };
+
+  const invalid_report_id = {
+    en: "Invalid report id",
+  };
+
+  const invalid_status = {
+    en: "Invalid status value",
+  };
+
+  const resolution_notes_required = {
+    en: "Resolution notes are required",
+  };
+
+  const required_fields_missing = {
+    en: "Required fields are missing",
+  };
+
+  const forbidden_action = {
+    en: "You are not allowed to perform this action",
+  };
+
+  const permission_denied = {
+    en: "Permission denied",
+  };
+
+  const permission_denied_reassign_lead = {
+    en: "You don't have permission to reassign leads",
+  };
+
+  const role_not_found = {
+    en: "Role not found",
+  };
+
+  const permission_check_failed = {
+    en: "Error checking permission",
+  };
+
+  return {
+    user_already_found: user_already_found[lang],
+    success: success[lang],
+    logout: logout[lang],
+    invalid_token: invalid_token[lang],
+    users_list: users_list[lang],
+    user_not_found: user_not_found[lang],
+    forbidden: forbidden[lang],
+    otp_sent: otp_sent[lang],
+    otp_verified: otp_verified[lang],
+    incorrect_otp: incorrect_otp[lang],
+    profile_fetched: profile_fetched[lang],
+    plans_list: plans_list[lang],
+    stations_list: stations_list[lang],
+    station_detail: station_detail[lang],
+    scooters_list: scooters_list[lang],
+    scooter_detail: scooter_detail[lang],
+    time_slots_list: time_slots_list[lang],
+    booking_quote: booking_quote[lang],
+    booking_created: booking_created[lang],
+    booking_list: booking_list[lang],
+    booking_detail: booking_detail[lang],
+    payment_initiated: payment_initiated[lang],
+    payment_confirmed: payment_confirmed[lang],
+    not_found: not_found[lang],
+    profile_updated: profile_updated[lang],
+    offers_list: offers_list[lang],
+    referral_fetched: referral_fetched[lang],
+    referral_applied: referral_applied[lang],
+    offer_redeemed: offer_redeemed[lang],
+    rewards_list: rewards_list[lang],
+    notifications_list: notifications_list[lang],
+    notification_read: notification_read[lang],
+    faqs_list: faqs_list[lang],
+    ticket_created: ticket_created[lang],
+    tickets_list: tickets_list[lang],
+    ticket_detail: ticket_detail[lang],
+    ride_history: ride_history[lang],
+    ride_started: ride_started[lang],
+    ride_completed: ride_completed[lang],
+    receipt_generated: receipt_generated[lang],
+    admin_login_success: admin_login_success[lang],
+    qr_unlocked: qr_unlocked[lang],
+    status_changed: status_changed[lang],
+    interest_exists: interest_exists[lang],
+    social_id_missing: social_id_missing[lang],
+    password_changed: password_changed[lang],
+    incorrect_password: incorrect_password[lang],
+    invalid_credentials: invalid_credentials[lang],
+
+    recent_activity_fetched: recent_activity_fetched[lang],
+    dashboard_stats_fetched: dashboard_stats_fetched[lang],
+
+    user_status_updated: user_status_updated[lang],
+    password_reset_success: password_reset_success[lang],
+    kyc_updated: kyc_updated[lang],
+    rejection_reason_required: rejection_reason_required[lang],
+    invalid_user_id: invalid_user_id[lang],
+    isActive_must_be_boolean: isActive_must_be_boolean[lang],
+
+    competition_created: competition_created[lang],
+    competition_updated: competition_updated[lang],
+    competition_soft_deleted: competition_soft_deleted[lang],
+    competition_approved: competition_approved[lang],
+    competition_rejected: competition_rejected[lang],
+    competition_not_found: competition_not_found[lang],
+    only_created_can_be_approved: only_created_can_be_approved[lang],
+    only_created_can_be_rejected: only_created_can_be_rejected[lang],
+    winners_declared: winners_declared[lang],
+    winners_required: winners_required[lang],
+    winners_already_declared: winners_already_declared[lang],
+    duplicate_ranks_not_allowed: duplicate_ranks_not_allowed[lang],
+    only_active_can_declare: only_active_can_declare[lang],
+
+    sponsor_created: sponsor_created[lang],
+    sponsor_updated: sponsor_updated[lang],
+    sponsor_deactivated: sponsor_deactivated[lang],
+    sponsor_not_found: sponsor_not_found[lang],
+    email_already_exists: email_already_exists[lang],
+    email_password_required: email_password_required[lang],
+    invalid_sponsor_id: invalid_sponsor_id[lang],
+
+    earnings_list: earnings_list[lang],
+    winners_list: winners_list[lang],
+    top_earners_list: top_earners_list[lang],
+
+    report_updated: report_updated[lang],
+    report_not_found: report_not_found[lang],
+    invalid_report_id: invalid_report_id[lang],
+    invalid_status: invalid_status[lang],
+    resolution_notes_required: resolution_notes_required[lang],
+
+    required_fields_missing: required_fields_missing[lang],
+    forbidden_action: forbidden_action[lang],
+    permission_denied: permission_denied[lang],
+    permission_denied_reassign_lead: permission_denied_reassign_lead[lang],
+    role_not_found: role_not_found[lang],
+    permission_check_failed: permission_check_failed[lang],
+  };
+};

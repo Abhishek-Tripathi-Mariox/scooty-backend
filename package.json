@@ -1,0 +1,33 @@
+{
+  "name": "scootyrentalbackend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed:admin": "node scripts/seedAdmin.js",
+    "test": "node -c index.js && node -c src/routes/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
+    "@aws-sdk/lib-storage": "^3.879.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-fileupload": "^1.5.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.0",
+    "node-input-validator": "^4.5.1",
+    "redis": "^4.7.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
