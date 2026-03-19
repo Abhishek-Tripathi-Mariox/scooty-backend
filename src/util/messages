@@ -93,6 +93,12 @@ module.exports = (lang = "en") => {
   const profile_updated = {
     en: "profile updated successfully",
   };
+  const bank_details_fetched = {
+    en: "bank details fetched successfully",
+  };
+  const bank_details_updated = {
+    en: "bank details updated successfully",
+  };
   const offers_list = {
     en: "offers fetched successfully",
   };
@@ -179,6 +185,9 @@ module.exports = (lang = "en") => {
 
   const kyc_updated = {
     en: "KYC status updated successfully",
+  };
+  const kyc_fetched = {
+    en: "KYC fetched successfully",
   };
 
   const rejection_reason_required = {
@@ -355,6 +364,8 @@ module.exports = (lang = "en") => {
     payment_confirmed: payment_confirmed[lang],
     not_found: not_found[lang],
     profile_updated: profile_updated[lang],
+    bank_details_fetched: bank_details_fetched[lang],
+    bank_details_updated: bank_details_updated[lang],
     offers_list: offers_list[lang],
     referral_fetched: referral_fetched[lang],
     referral_applied: referral_applied[lang],
@@ -385,6 +396,7 @@ module.exports = (lang = "en") => {
     user_status_updated: user_status_updated[lang],
     password_reset_success: password_reset_success[lang],
     kyc_updated: kyc_updated[lang],
+    kyc_fetched: kyc_fetched[lang],
     rejection_reason_required: rejection_reason_required[lang],
     invalid_user_id: invalid_user_id[lang],
     isActive_must_be_boolean: isActive_must_be_boolean[lang],

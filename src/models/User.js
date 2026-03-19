@@ -37,17 +37,31 @@ const UserSchema = new mongoose.Schema(
 
     // Owner fields
     companyName: { type: String },
-    bank: {
-      accountHolderName: { type: String },
-      accountNumber: { type: String },
-      bankName: { type: String },
-      ifsc: { type: String },
-      file:  {type:String}
-    },
 
     //documents...
     adharFile: { type: String },
     panFile: { type: String },
+    // Owner KYC
+    kycStatus: {
+      type: String,
+      enum: ["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED"],
+      default: "NOT_SUBMITTED",
+      index: true,
+    },
+    kycRejectionReason: { type: String, default: "" },
+    kycSubmittedAt: { type: Date },
+    kycVerifiedAt: { type: Date },
+
+    // App preferences
+    settings: {
+      notifications: {
+        rideUpdates: { type: Boolean, default: true },
+        earnings: { type: Boolean, default: true },
+        payout: { type: Boolean, default: true },
+        promotions: { type: Boolean, default: true },
+        maintenance: { type: Boolean, default: true },
+      },
+    },
   },
   { timestamps: true },
 );
