@@ -9,6 +9,12 @@ const con = mongoose.connection;
 const models = {
   User: require("./User"),
   Station: require("./Station"),
+  Bank: require("./Bank"),
+  Vehicle: require("./Vehicle"),
+  Notification: require("./Notification"),
+  PayoutRequest: require("./PayoutRequest"),
+  MaintenanceRequest: require("./MaintenanceRequest"),
+  SupportTicket: require("./SupportTicket"),
 };
 
 con.on("open", () => {
