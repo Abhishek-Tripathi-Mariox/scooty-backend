@@ -9,8 +9,11 @@ const con = mongoose.connection;
 const models = {
   User: require("./User"),
   Station: require("./Station"),
+  RidePlan: require("./RidePlan"),
+  Faq: require("./Faq"),
   Bank: require("./Bank"),
   Vehicle: require("./Vehicle"),
+  Booking: require("./Booking"),
   Notification: require("./Notification"),
   PayoutRequest: require("./PayoutRequest"),
   MaintenanceRequest: require("./MaintenanceRequest"),

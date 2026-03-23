@@ -1,4 +1,4 @@
-# Backend APIs (Basic)
+# User APIs
 
 Base URL: `http://localhost:3000/v1/api`
 
@@ -7,15 +7,12 @@ Response format:
 { "code": 1, "message": "success", "data": {} }
 ```
 
-## Roles (single `User` model)
-- `ADMIN`
-- `STATION_ADMIN`
-- `USER`
-- `OWNER`
+Auth header:
+- `Authorization: Bearer <userToken>`
 
 ---
 
-## 1) Customer (USER) OTP Login
+## Auth
 
 ### `POST /auth/send-otp`
 Body:
@@ -28,157 +25,149 @@ Body:
 ```json
 { "mobile": "9999999999", "otp": "123456", "name": "User Name" }
 ```
-Success: returns `token` (Bearer) + `user`.
+Success: returns `token` and `user`.
 
 ---
 
-## 2) Owner (OWNER) OTP Login
+## Profile
 
-### `POST /owner/auth/send-otp`
+### `GET /user/me`
+
+### `PATCH /user/me`
 Body:
-```json
-{ "mobile": "7777777777" }
-```
-
-### `POST /owner/auth/verify-otp`
-Body:
-```json
-{ "mobile": "7777777777", "otp": "123456", "name": "Owner Name", "companyName": "Fleet Owner" }
-```
-
----
-
-## 3) Profile
-
-### `GET /user`
-Header: `Authorization: Bearer <userToken>`
-
-### `PATCH /user`
-Header: `Authorization: Bearer <userToken>`
-Body (any):
 ```json
 { "name": "New Name", "email": "me@example.com", "profilePhotoUrl": "https://..." }
 ```
 Notes:
-- Multipart upload `profilePhoto` supported (field name `profilePhoto`).
+- Multipart upload `profilePhoto` is supported.
 
-### `GET /owner/me`
-Header: `Authorization: Bearer <ownerToken>`
+---
 
-### `PATCH /owner/me`
-Header: `Authorization: Bearer <ownerToken>`
+## Explore
+
+### `GET /user/plans`
+Optional query:
+- `stationId`
+
+### `GET /user/stations`
+Optional query:
+- `lat`
+- `lng`
+- `search`
+
+### `GET /user/stations/:stationId`
+
+### `GET /user/time-slots`
+Optional query:
+- `date` in `YYYY-MM-DD`
+- `planCode`
+- `stationId`
+
+Notes:
+- Only approved ride plans and FAQs are visible to users.
+
+---
+
+## Booking
+
+### `POST /user/bookings/quote`
 Body:
 ```json
-{ "name": "Owner Name", "email": "owner@example.com", "companyName": "Fleet Owner", "upiId": "owner@upi" }
+{
+  "pickupStationId": "<stationId>",
+  "dropStationId": "<stationId>",
+  "planCode": "DAY_PASS",
+  "date": "2026-03-23",
+  "startTime": "10:00",
+  "referralCode": "MVABCD12",
+  "walletToUse": 100
+}
+```
+
+### `POST /user/bookings`
+Body:
+```json
+{
+  "pickupStationId": "<stationId>",
+  "dropStationId": "<stationId>",
+  "planCode": "DAY_PASS",
+  "date": "2026-03-23",
+  "startTime": "10:00",
+  "paymentMethod": "UPI",
+  "paymentReferenceId": "pay_demo_001",
+  "walletToUse": 100
+}
+```
+
+### `GET /user/bookings`
+Optional query:
+- `status` = `PENDING_PAYMENT|CONFIRMED|ACTIVE|COMPLETED|CANCELLED`
+
+### `GET /user/bookings/:bookingId`
+
+### `POST /user/bookings/:bookingId/pay`
+Body:
+```json
+{ "paymentMethod": "UPI", "paymentReferenceId": "pay_demo_002" }
+```
+
+### `POST /user/bookings/:bookingId/start`
+
+### `POST /user/bookings/:bookingId/complete`
+Body:
+```json
+{
+  "dropStationId": "<stationId>",
+  "parkingPhotoUrl": "https://example.com/parking.jpg",
+  "rating": 5,
+  "review": "Smooth ride"
+}
+```
+
+### `GET /user/rides/history`
+
+---
+
+## Wallet / Referral
+
+### `GET /user/wallet`
+
+### `GET /user/referral`
+
+### `POST /user/referral/apply`
+Body:
+```json
+{ "referralCode": "MVABCD12" }
 ```
 
 ---
 
-## 4) Admin / Station Admin
+## Notifications
 
-### `POST /admin/auth/login`
-Body:
-```json
-{ "email": "admin@station.com", "password": "Admin@123" }
-```
-Success: returns `token` (Bearer) + `admin` (same `User` model, role `ADMIN` or `STATION_ADMIN`).
+### `GET /user/notifications`
+Optional query:
+- `type` = `RIDE|EARNING|ALERT|SYSTEM`
 
-### `GET /admin/me`
-Header: `Authorization: Bearer <adminToken>`
+### `PATCH /user/notifications/read-all`
+Optional query:
+- `type` = `RIDE|EARNING|ALERT|SYSTEM`
 
-### `PATCH /admin/me`
-Header: `Authorization: Bearer <adminToken>`
-
-### `POST /admin/change-password`
-Header: `Authorization: Bearer <adminToken>`
-
-### Create Station Admin (ADMIN only)
-#### `POST /admin/station-admins`
-Header: `Authorization: Bearer <adminToken>`
-Body:
-```json
-{ "name": "Station Admin", "email": "sa@station.com", "password": "Sa@123", "mobile": "9000000000", "stationId": "<stationId>" }
-```
-
-#### `GET /admin/station-admins`
-Header: `Authorization: Bearer <adminToken>`
-Query:
-- `page` (default `1`)
-- `limit` (default `20`, max `100`)
-
-Response `data.pagination`:
-```json
-{ "page": 1, "limit": 20, "total": 0, "totalPages": 1, "hasNextPage": false, "hasPrevPage": false }
-```
+### `PATCH /user/notifications/:notificationId/read`
 
 ---
 
-## 5) Station Admin (existing only)
+## Support
 
-Base: `http://localhost:3000/v1/api/station-admin`
+### `GET /user/support/faqs`
+Optional query:
+- `stationId`
 
-### Password login
-#### `POST /station-admin/auth/login`
+### `GET /user/support/tickets`
+
+### `POST /user/support/tickets`
 Body:
 ```json
-{ "email": "sa@station.com", "password": "Sa@123" }
+{ "subject": "Ride issue", "message": "Unable to unlock the scooter" }
 ```
 
-### OTP login (existing station admin only)
-#### `POST /station-admin/auth/send-otp`
-Body:
-```json
-{ "email": "sa@station.com" }
-```
-Success: returns `transactionId`.
-
-#### `POST /station-admin/auth/resend-otp`
-Body:
-```json
-{ "transactionId": "<transactionId>" }
-```
-Note: isme DB query nahi lagti (only transaction lookup).
-
-#### `POST /station-admin/auth/verify-otp`
-Body:
-```json
-{ "email": "sa@station.com", "otp": "123456" }
-```
-Note: OTP verify se new StationAdmin create nahi hoga — sirf existing login karega.
-
-### Forgot password (Station Admin)
-#### `POST /station-admin/auth/forgot-password/send-otp`
-Body:
-```json
-{ "email": "sa@station.com" }
-```
-Success: returns `transactionId`.
-
-#### `POST /station-admin/auth/forgot-password/resend-otp`
-Body:
-```json
-{ "transactionId": "<transactionId>" }
-```
-Note: isme DB query nahi lagti (only transaction lookup).
-
-#### `POST /station-admin/auth/forgot-password/reset`
-Body:
-```json
-{ "transactionId": "<transactionId>", "otp": "123456", "newPassword": "NewPass@123" }
-```
-
-### Profile
-Header: `Authorization: Bearer <stationAdminToken>`
-- `GET /station-admin/me`
-- `PATCH /station-admin/me`
-- `POST /station-admin/change-password`
-
-## Seed Admin
-
-Run:
-- `npm run seed:admin`
-
-ENV:
-- `SEED_ADMIN_EMAIL=admin@station.com`
-- `SEED_ADMIN_PASSWORD=Admin@123`
-- `SEED_ADMIN_NAME=Admin User`
+### `GET /user/support/tickets/:ticketId`

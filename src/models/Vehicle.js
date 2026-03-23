@@ -13,6 +13,8 @@ const VehicleSchema = new mongoose.Schema(
     modelName: { type: String, default: "" },
     registrationNumber: { type: String, default: "", index: true },
     chassisNumber: { type: String, default: "" },
+    batteryPercent: { type: Number, default: null },
+    locationLabel: { type: String, default: "" },
 
     photos: {
       frontUrl: { type: String, default: "" },

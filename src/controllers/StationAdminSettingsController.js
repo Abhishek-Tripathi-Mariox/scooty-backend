@@ -16,7 +16,7 @@ module.exports = {
 
   update: async (req, res, next) => {
     const stationAdminId = req.body.stationAdminId;
-    const { name, email, mobile } = req.body || {};
+    const { name, email, mobile, stationId } = req.body || {};
 
     const userService = UserService();
     const stationAdmin = await userService.fetchDocByQuery({
@@ -59,7 +59,7 @@ module.exports = {
       }
       stationAdmin.mobile = normalized || stationAdmin.mobile;
     }
-
+    if(stationId) stationAdmin.stationId = stationId;
     await stationAdmin.save();
 
     req.rData = { stationAdmin };
@@ -67,4 +67,3 @@ module.exports = {
     return ResponseMiddleware(req, res, next);
   },
 };
-

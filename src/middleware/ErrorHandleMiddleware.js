@@ -11,11 +11,7 @@ module.exports = (handler) => {
       });
 
       req.rCode = 0;
-      // Never expose internal error details to clients
-      const message =
-        process.env.NODE_ENV === "development"
-          ? `${ex.message}`
-          : "An unexpected error occurred. Please try again.";
+      const message = ex.message || "An unexpected error occurred. Please try again.";
 
       ResponseMiddleware(req, res, next, message);
     }

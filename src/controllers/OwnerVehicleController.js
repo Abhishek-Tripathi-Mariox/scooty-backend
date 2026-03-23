@@ -12,7 +12,7 @@ module.exports = {
 
   create: async (req, res, next) => {
     const ownerId = req.body.ownerId;
-    const vehicle = await VehicleService().createDraft(ownerId, req.body || {},req.files || null);
+    const vehicle = await VehicleService().createDraft(ownerId, req.body || {}, req.files || null);
     req.rData = { vehicle };
     return ResponseMiddleware(req, res, next, "vehicle created");
   },
@@ -65,4 +65,3 @@ module.exports = {
     return ResponseMiddleware(req, res, next, "removal requested");
   },
 };
-

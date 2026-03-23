@@ -24,7 +24,6 @@ module.exports = () => {
       req.body = {
         ...(req.body || {}),
         stationAdminId: stationAdmin._id,
-        stationId: stationAdmin.stationId,
       };
       return next();
     } catch (ex) {
@@ -36,4 +35,3 @@ module.exports = () => {
 
   return { verifyStationAdminToken };
 };
-

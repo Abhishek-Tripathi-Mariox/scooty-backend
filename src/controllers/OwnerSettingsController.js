@@ -24,4 +24,3 @@ module.exports = {
     return ResponseMiddleware(req, res, next, "settings updated");
   },
 };
-
