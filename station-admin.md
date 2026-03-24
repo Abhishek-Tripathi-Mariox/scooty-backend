@@ -68,6 +68,16 @@ Body:
 
 ---
 
+## Dashboard
+
+### `GET /station-admin/dashboard`
+Optional query:
+- `stationId`
+
+Returns the station summary card data from the dashboard screen.
+
+---
+
 ## Content Submission
 
 ### `GET /station-admin/ride-plans`
@@ -204,3 +214,143 @@ Action aliases are also accepted:
 - `MARK_INACTIVE`
 
 This is the endpoint behind the status action menu in the station admin fleet screen.
+---
+## Booking Control
+
+### `GET /station-admin/bookings`
+Optional query:
+- `stationId`
+- `status` = `PENDING_PAYMENT|CONFIRMED|ACTIVE|COMPLETED|CANCELLED`
+- `q`
+- `page`
+- `limit`
+
+### `GET /station-admin/bookings/:bookingId`
+
+### `PATCH /station-admin/bookings/:bookingId/approve`
+Body:
+```json
+{ "note": "Approved by station admin" }
+```
+
+### `PATCH /station-admin/bookings/:bookingId/cancel`
+Body:
+```json
+{ "reason": "Customer requested cancellation" }
+```
+
+---
+
+## Ride Monitoring
+
+### `GET /station-admin/rides`
+Optional query:
+- `stationId`
+- `status` = `CONFIRMED|ACTIVE|COMPLETED|CANCELLED`
+- `q`
+- `page`
+- `limit`
+
+### `GET /station-admin/rides/:rideId`
+
+### `POST /station-admin/rides/:rideId/force-end`
+Body:
+```json
+{ "note": "Ended from control room" }
+```
+
+### `POST /station-admin/rides/:rideId/lock-vehicle`
+Body:
+```json
+{ "note": "Vehicle locked for inspection" }
+```
+
+---
+
+## Maintenance Logs
+
+### `GET /station-admin/maintenance-logs`
+Optional query:
+- `status` = `OPEN|IN_PROGRESS|COMPLETED|REJECTED`
+- `q`
+- `page`
+- `limit`
+
+### `POST /station-admin/maintenance-logs`
+Body:
+```json
+{
+  "vehicleId": "<vehicleId>",
+  "issueType": "BATTERY",
+  "description": "Battery draining quickly",
+  "estimatedCost": 1200
+}
+```
+Notes:
+- Multipart upload is supported. Send one or more images in `photos` for the AWS upload flow.
+- Single file fields `photo`, `maintenancePhoto`, or `maintenance_photo` are also accepted.
+- `estimatedCost` is optional and should be a number when provided.
+
+### `GET /station-admin/maintenance-logs/:requestId`
+
+### `PATCH /station-admin/maintenance-logs/:requestId/status`
+Body:
+```json
+{
+  "status": "IN_PROGRESS",
+  "resolutionNote": "Technician assigned"
+}
+```
+
+---
+
+## Support
+
+### `GET /station-admin/support/tickets`
+Optional query:
+- `status`
+- `q`
+- `page`
+- `limit`
+
+### `GET /station-admin/support/tickets/:ticketId`
+
+### `PATCH /station-admin/support/tickets/:ticketId/status`
+Body:
+```json
+{ "status": "RESOLVED" }
+```
+
+### `PATCH /station-admin/support/tickets/:ticketId/escalate`
+Body:
+```json
+{ "note": "Escalated to super admin for review" }
+```
+Use this when the station admin wants to hand the ticket off to the super admin team.
+
+---
+
+## Notifications
+
+### `GET /station-admin/notifications`
+Optional query:
+- `type`
+
+### `PATCH /station-admin/notifications/:notificationId/read`
+
+### `PATCH /station-admin/notifications/read-all`
+Optional body/query:
+- `type`
+
+---
+
+## Reports
+
+### `GET /station-admin/reports`
+Optional query:
+- `stationId`
+- `from` in `YYYY-MM-DD`
+- `to` in `YYYY-MM-DD`
+- `q` = search by vehicle id, model, registration, or chassis number
+
+Returns summary totals, daily chart data, vehicle counts by status, and maintenance counts.

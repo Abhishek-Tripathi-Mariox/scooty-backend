@@ -16,6 +16,9 @@ const SupportTicketSchema = new mongoose.Schema(
       default: "OPEN",
       index: true,
     },
+    escalatedToSuperAdmin: { type: Boolean, default: false, index: true },
+    escalatedAt: { type: Date },
+    escalationNote: { type: String, default: "" },
   },
   { timestamps: true },
 );

@@ -64,6 +64,12 @@ Body:
 ```json
 { "name": "Station Admin", "email": "sa@station.com", "password": "Sa@123", "mobile": "9000000000", "stationId": "<stationId>" }
 ```
+Validation:
+- `name`, `email`, `password`, and `stationId` are required.
+- `stationId` must point to an existing station.
+
+Response note:
+- Auth/profile APIs return the admin object without `passwordHash`.
 
 ---
 

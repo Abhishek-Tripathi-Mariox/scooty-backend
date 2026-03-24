@@ -21,7 +21,8 @@ const MaintenanceRequestSchema = new mongoose.Schema(
       index: true,
     },
     description: { type: String, default: "" },
-    photoUrl: { type: String, default: "" },
+    estimatedCost: { type: Number, default: null },
+    photoUrls: { type: [String], default: [] },
     status: {
       type: String,
       enum: ["OPEN", "IN_PROGRESS", "COMPLETED", "REJECTED"],

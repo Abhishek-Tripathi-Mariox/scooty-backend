@@ -1,15 +1,23 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
+const { models, mongoose } = require("../models");
+
+const sanitizeAdmin = (admin) => {
+  if (!admin) return admin;
+  const data = admin.toObject ? admin.toObject() : { ...admin };
+  delete data.passwordHash;
+  return data;
+};
 
 module.exports = {
   me: async (req, res, next) => {
     const adminId = req.body.adminId;
-    const admin = await UserService().fetchById(adminId);
+    const admin = await UserService().fetchDocByQuery({ _id: adminId, role: "ADMIN" });
     if (!admin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Admin not found");
     }
-    req.rData = { admin };
+    req.rData = { admin: sanitizeAdmin(admin) };
     req.msg = "profile_fetched";
     return ResponseMiddleware(req, res, next);
   },
@@ -19,7 +27,7 @@ module.exports = {
     const { name, email, mobile, stationId } = req.body || {};
 
     const service = UserService();
-    const admin = await service.fetchDocByQuery({ _id: adminId });
+    const admin = await service.fetchDocByQuery({ _id: adminId, role: "ADMIN" });
     if (!admin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Admin not found");
@@ -57,10 +65,21 @@ module.exports = {
       admin.mobile = normalized || admin.mobile;
     }
 
-    if (stationId) admin.stationId = stationId;
+    if (stationId) {
+      if (!mongoose.Types.ObjectId.isValid(String(stationId))) {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, "Invalid stationId");
+      }
+      const station = await models.Station.findById(stationId).lean();
+      if (!station) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Station not found");
+      }
+      admin.stationId = stationId;
+    }
 
     await admin.save();
-    req.rData = { admin };
+    req.rData = { admin: sanitizeAdmin(admin) };
     req.msg = "profile_updated";
     return ResponseMiddleware(req, res, next);
   },

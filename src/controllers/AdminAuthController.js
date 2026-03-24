@@ -4,6 +4,12 @@ const { comparePassword, hashPassword } = require("../util/password");
 const UserService = require("../services/UserService");
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const sanitizeAdmin = (admin) => {
+  if (!admin) return admin;
+  const data = admin.toObject ? admin.toObject() : { ...admin };
+  delete data.passwordHash;
+  return data;
+};
 
 module.exports = {
   login: async (req, res, next) => {
@@ -27,7 +33,7 @@ module.exports = {
     }
 
     const token = generateToken({ user_id: admin._id.toString(), role: admin.role });
-    req.rData = { token, admin };
+    req.rData = { token, admin: sanitizeAdmin(admin) };
     req.msg = "admin_login_success";
     return ResponseMiddleware(req, res, next);
   },

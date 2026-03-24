@@ -1,11 +1,18 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
 const { hashPassword } = require("../util/password");
-const { models } = require("../models");
+const { models, mongoose } = require("../models");
 
 const toInt = (v, fallback) => {
   const n = parseInt(String(v), 10);
   return Number.isFinite(n) ? n : fallback;
+};
+
+const sanitizeAdmin = (admin) => {
+  if (!admin) return admin;
+  const data = admin.toObject ? admin.toObject() : { ...admin };
+  delete data.passwordHash;
+  return data;
 };
 
 module.exports = {
@@ -20,6 +27,7 @@ module.exports = {
       models.User.countDocuments(query),
       models.User.find(query)
         .sort({ createdAt: -1 })
+        .select("-passwordHash")
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -50,6 +58,15 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "name, email, password are required");
     }
 
+    if (!stationId) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "stationId is required");
+    }
+    if (!mongoose.Types.ObjectId.isValid(String(stationId))) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "Invalid stationId");
+    }
+
     const normalizedEmail = String(email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       req.rCode = 0;
@@ -76,6 +93,12 @@ module.exports = {
       }
     }
 
+    const station = await models.Station.findById(stationId).lean();
+    if (!station) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Station not found");
+    }
+
     const passwordHash = await hashPassword(password);
     const admin = await userService.create({
       role: "STATION_ADMIN",
@@ -87,7 +110,7 @@ module.exports = {
       isActive: true,
     });
 
-    req.rData = { admin };
+    req.rData = { admin: sanitizeAdmin(admin) };
     req.msg = "success";
     return ResponseMiddleware(req, res, next);
   },
