@@ -1,5 +1,7 @@
 const { models, mongoose } = require("../models");
 const fileUploadService = require("../util/s3");
+const AuditLogService = require("./AuditLogService");
+const FinanceService = require("./FinanceService");
 
 const BOOKING_STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED"];
 const RIDE_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"];
@@ -471,6 +473,7 @@ module.exports = () => {
       throw err;
     }
 
+    const before = booking.toObject();
     booking.status = "CONFIRMED";
     booking.payment = {
       ...booking.payment,
@@ -489,6 +492,17 @@ module.exports = () => {
     };
     await booking.save();
 
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "BOOKING_APPROVED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+      meta: { stationId, note },
+    });
+
     return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
   };
 
@@ -505,6 +519,7 @@ module.exports = () => {
     });
     if (!booking) return null;
 
+    const before = booking.toObject();
     booking.status = "CANCELLED";
     booking.meta = {
       ...(booking.meta || {}),
@@ -514,6 +529,17 @@ module.exports = () => {
       stationAdminId,
     };
     await booking.save();
+
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "BOOKING_CANCELLED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+      meta: { stationId, reason },
+    });
 
     return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
   };
@@ -561,6 +587,11 @@ module.exports = () => {
 
     const endedAt = new Date();
     const startedAt = booking.rideStartedAt || booking.startAt || booking.createdAt;
+    const before = booking.toObject();
+    const penalty = await FinanceService().calculatePenalty({
+      booking,
+      actualDurationMinutes: diffMinutes(startedAt, endedAt),
+    });
     booking.status = "COMPLETED";
     booking.rideEndedAt = endedAt;
     booking.actualDurationMinutes = diffMinutes(startedAt, endedAt);
@@ -570,6 +601,7 @@ module.exports = () => {
       forceEndedAt: endedAt,
       forceEndNote: note,
       stationAdminId,
+      penalty,
     };
     await booking.save();
 
@@ -583,6 +615,17 @@ module.exports = () => {
         },
       },
     );
+
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "RIDE_FORCE_ENDED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+      meta: { stationId, note },
+    });
 
     return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
   };
@@ -605,6 +648,7 @@ module.exports = () => {
       ...(stationId ? { stationId } : {}),
     });
     if (!vehicle) return null;
+    const before = vehicle.toObject();
 
     vehicle.status = "INACTIVE";
     vehicle.approvalNote = note || "Locked by station admin";
@@ -622,6 +666,17 @@ module.exports = () => {
       },
     );
 
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "VEHICLE_LOCKED",
+      entityType: "Vehicle",
+      entityId: vehicle._id,
+      before,
+      after: vehicle.toObject(),
+      meta: { stationId, note },
+    });
+
     return await models.Vehicle.findById(vehicle._id).lean();
   };
 
@@ -632,7 +687,7 @@ module.exports = () => {
     page = 1,
     limit = 20,
   }) => {
-    const { stationAdmin } = await resolveStationScope({ stationAdminId });
+    const { stationAdmin, stationId } = await resolveStationScope({ stationAdminId });
     if (!stationAdmin) return null;
 
     const safePage = normalizePage(page);
@@ -640,7 +695,7 @@ module.exports = () => {
     const skip = (safePage - 1) * safeLimit;
     const normalizedStatus = String(status || "").trim().toUpperCase();
 
-    const query = {};
+    const query = { stationId };
     if (normalizedStatus && MAINTENANCE_STATUSES.includes(normalizedStatus)) {
       query.status = normalizedStatus;
     }
@@ -689,7 +744,7 @@ module.exports = () => {
     payload,
     files = null,
   }) => {
-    const { stationAdmin } = await resolveStationScope({ stationAdminId });
+    const { stationAdmin, stationId } = await resolveStationScope({ stationAdminId });
     if (!stationAdmin) return null;
 
     const vehicleId = String(payload.vehicleId || "").trim();
@@ -700,6 +755,7 @@ module.exports = () => {
     }
     const vehicle = await models.Vehicle.findOne({
       _id: new mongoose.Types.ObjectId(vehicleId),
+      ...(stationId ? { stationId } : {}),
     });
     if (!vehicle) {
       const err = new Error("Vehicle not found");
@@ -736,6 +792,7 @@ module.exports = () => {
     const request = await models.MaintenanceRequest.create({
       userId: stationAdminId,
       vehicleId: vehicle._id,
+      stationId,
       issueType: [
         "BATTERY",
         "BRAKE",
@@ -753,6 +810,16 @@ module.exports = () => {
       status: "OPEN",
     });
 
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "MAINTENANCE_CREATED",
+      entityType: "MaintenanceRequest",
+      entityId: request._id,
+      after: request,
+      meta: { stationId, vehicleId: vehicle._id, issueType: request.issueType },
+    });
+
     vehicle.status = "MAINTENANCE";
     vehicle.approvalNote = String(payload.note || "").trim();
     await vehicle.save();
@@ -764,10 +831,10 @@ module.exports = () => {
   };
 
   const maintenanceDetail = async ({ stationAdminId, requestId }) => {
-    const { stationAdmin } = await resolveStationScope({ stationAdminId });
+    const { stationAdmin, stationId } = await resolveStationScope({ stationAdminId });
     if (!stationAdmin) return null;
 
-    const request = await models.MaintenanceRequest.findOne({ _id: requestId })
+    const request = await models.MaintenanceRequest.findOne({ _id: requestId, stationId })
       .populate("vehicleId", "modelName registrationNumber status stationId")
       .populate("userId", "name email mobile")
       .lean();
@@ -781,7 +848,7 @@ module.exports = () => {
     status,
     resolutionNote = "",
   }) => {
-    const { stationAdmin } = await resolveStationScope({ stationAdminId });
+    const { stationAdmin, stationId } = await resolveStationScope({ stationAdminId });
     if (!stationAdmin) return null;
 
     const normalizedStatus = String(status || "").trim().toUpperCase();
@@ -791,19 +858,34 @@ module.exports = () => {
       throw err;
     }
 
-    const request = await models.MaintenanceRequest.findOne({ _id: requestId });
+    const request = await models.MaintenanceRequest.findOne({ _id: requestId, stationId });
     if (!request) {
       const err = new Error("Maintenance request not found");
       err.code = "MAINTENANCE_REQUEST_NOT_FOUND";
       throw err;
     }
+    const before = request.toObject();
 
     request.status = normalizedStatus;
     request.resolutionNote = String(resolutionNote || "").trim();
     await request.save();
 
     const vehicleStatus = normalizedStatus === "COMPLETED" || normalizedStatus === "REJECTED" ? "ACTIVE" : "MAINTENANCE";
-    await models.Vehicle.updateOne({ _id: request.vehicleId }, { $set: { status: vehicleStatus } });
+    await models.Vehicle.updateOne(
+      { _id: request.vehicleId, ...(stationId ? { stationId } : {}) },
+      { $set: { status: vehicleStatus } },
+    );
+
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "MAINTENANCE_STATUS_UPDATED",
+      entityType: "MaintenanceRequest",
+      entityId: request._id,
+      before,
+      after: request.toObject(),
+      meta: { status: normalizedStatus, vehicleStatus },
+    });
 
     return await models.MaintenanceRequest.findById(request._id)
       .populate("vehicleId", "modelName registrationNumber status stationId")
@@ -917,7 +999,7 @@ module.exports = () => {
     return ticket ? formatTicket(ticket) : null;
   };
 
-  const updateSupportTicket = async ({ ticketId, status }) => {
+  const updateSupportTicket = async ({ stationAdminId, ticketId, status }) => {
     const normalizedStatus = String(status || "").trim().toUpperCase();
     if (!SUPPORT_STATUSES.includes(normalizedStatus)) {
       const err = new Error("Invalid support ticket status");
@@ -927,13 +1009,24 @@ module.exports = () => {
 
     const ticket = await models.SupportTicket.findById(ticketId);
     if (!ticket) return null;
+    const before = ticket.toObject();
 
     ticket.status = normalizedStatus;
     await ticket.save();
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "SUPPORT_TICKET_STATUS_UPDATED",
+      entityType: "SupportTicket",
+      entityId: ticket._id,
+      before,
+      after: ticket.toObject(),
+      meta: { status: normalizedStatus },
+    });
     return ticket.toObject();
   };
 
-  const escalateSupportTicket = async ({ ticketId, note = "" }) => {
+  const escalateSupportTicket = async ({ stationAdminId, ticketId, note = "" }) => {
     const ticket = await models.SupportTicket.findById(ticketId);
     if (!ticket) return null;
 
@@ -943,11 +1036,22 @@ module.exports = () => {
       throw err;
     }
 
+    const before = ticket.toObject();
     ticket.status = "IN_PROGRESS";
     ticket.escalatedToSuperAdmin = true;
     ticket.escalatedAt = new Date();
     ticket.escalationNote = String(note || "").trim();
     await ticket.save();
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "SUPPORT_TICKET_ESCALATED",
+      entityType: "SupportTicket",
+      entityId: ticket._id,
+      before,
+      after: ticket.toObject(),
+      meta: { note: ticket.escalationNote },
+    });
     return ticket.toObject();
   };
 
@@ -1102,6 +1206,96 @@ module.exports = () => {
     };
   };
 
+  const listTransactions = async ({
+    stationAdminId,
+    stationId: requestedStationId = "",
+    type,
+    from,
+    to,
+    page = 1,
+    limit = 20,
+  }) => {
+    const { stationAdmin, stationId } = await resolveStationScope({
+      stationAdminId,
+      stationId: requestedStationId,
+    });
+    if (!stationAdmin) return null;
+
+    return await FinanceService().listTransactions({
+      role: "ADMIN",
+      type,
+      from,
+      to,
+      stationId,
+      page,
+      limit,
+    });
+  };
+
+  const bookingInvoice = async ({ stationAdminId, stationId: requestedStationId = "", bookingId }) => {
+    const { stationAdmin, stationId } = await resolveStationScope({
+      stationAdminId,
+      stationId: requestedStationId,
+    });
+    if (!stationAdmin) return null;
+
+    const booking = await models.Booking.findOne({
+      _id: bookingId,
+      ...(stationId ? { pickupStationId: stationId } : {}),
+    })
+      .populate("vehicleId", "modelName registrationNumber photos ownerId")
+      .populate("pickupStationId", "name address")
+      .populate("dropStationId", "name address")
+      .populate("userId", "name email mobile")
+      .lean();
+    if (!booking) return null;
+
+    return await FinanceService().buildBookingInvoice({
+      bookingDoc: booking,
+      customer: {
+        id: booking.userId?._id || booking.userId || null,
+        name: booking.userId?.name || "",
+        mobile: booking.userId?.mobile || "",
+        email: booking.userId?.email || "",
+      },
+    });
+  };
+
+  const updateBookingRefund = async ({
+    stationAdminId,
+    stationId: requestedStationId = "",
+    bookingId,
+    status,
+    note,
+    failureReason,
+    referenceId,
+    method,
+  }) => {
+    const { stationAdmin, stationId } = await resolveStationScope({
+      stationAdminId,
+      stationId: requestedStationId,
+    });
+    if (!stationAdmin) return null;
+
+    const booking = await models.Booking.findOne({
+      _id: bookingId,
+      ...(stationId ? { pickupStationId: stationId } : {}),
+    });
+    if (!booking) return null;
+
+    const result = await FinanceService().markRefundState({
+      bookingId,
+      status,
+      note,
+      failureReason,
+      referenceId,
+      method,
+      processedByRole: "STATION_ADMIN",
+      processedByUserId: stationAdminId,
+    });
+    return result ? result.booking : null;
+  };
+
   return {
     getDashboard,
     listBookings,
@@ -1123,5 +1317,8 @@ module.exports = () => {
     updateSupportTicket,
     escalateSupportTicket,
     reports,
+    listTransactions,
+    bookingInvoice,
+    updateBookingRefund,
   };
 };

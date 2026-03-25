@@ -1,5 +1,6 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 const { models, mongoose } = require("../models");
 
 const sanitizeAdmin = (admin) => {
@@ -78,7 +79,19 @@ module.exports = {
       admin.stationId = stationId;
     }
 
+    const before = sanitizeAdmin(admin);
     await admin.save();
+
+    await AuditLogService().create({
+      actorId: adminId,
+      action: "ADMIN_PROFILE_UPDATED",
+      entityType: "User",
+      entityId: admin._id,
+      before,
+      after: sanitizeAdmin(admin),
+      meta: { stationId: admin.stationId || null },
+    });
+
     req.rData = { admin: sanitizeAdmin(admin) };
     req.msg = "profile_updated";
     return ResponseMiddleware(req, res, next);

@@ -2,6 +2,7 @@ const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const { generateToken } = require("../util/tokenUtils");
 const { generateOtp, storeOtp, verifyOtp } = require("../util/otpUtil");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 
 const normalizeMobile = (mobile) => String(mobile || "").replace(/\D/g, "");
 
@@ -17,6 +18,12 @@ module.exports = {
     const otp = process.env.MASTER_OTP_LOGIN || "123456"; // For development/testing, use a fixed OTP or environment variable
 
     await storeOtp(`owner:${mobile}`, otp);
+    await AuditLogService().create({
+      actorRole: "OWNER",
+      action: "OWNER_OTP_SENT",
+      entityType: "Auth",
+      meta: { mobile },
+    });
 
     req.rData = { mobile, otp: otp };
     req.msg = "otp_sent";
@@ -55,6 +62,14 @@ module.exports = {
       if (companyName && !owner.companyName) owner.companyName = companyName;
       await owner.save();
     }
+    await AuditLogService().create({
+      actorId: owner._id,
+      actorRole: "OWNER",
+      action: "OWNER_OTP_VERIFIED",
+      entityType: "Auth",
+      entityId: owner._id,
+      meta: { mobile },
+    });
 
     const token = generateToken({ user_id: owner._id.toString(), role: "OWNER" });
     req.rData = { token, owner };

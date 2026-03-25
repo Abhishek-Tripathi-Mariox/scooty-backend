@@ -1,6 +1,7 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const OwnerService = require("../services/OwnerService");
 const BankService = require("../services/BankService");
+const FinanceService = require("../services/FinanceService");
 
 
 module.exports = {
@@ -61,5 +62,20 @@ module.exports = {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, error.message || "Something went wrong");
     }
+  },
+
+  transactions: async (req, res, next) => {
+    const data = await FinanceService().listTransactions({
+      userId: req.body.ownerId,
+      role: "OWNER",
+      type: req.query.type,
+      from: req.query.from,
+      to: req.query.to,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+    req.rData = data;
+    req.msg = "transactions_list";
+    return ResponseMiddleware(req, res, next);
   },
 };

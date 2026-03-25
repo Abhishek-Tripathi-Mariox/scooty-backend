@@ -25,6 +25,153 @@ Body:
 ### `PATCH /admin/me`
 
 ### `POST /admin/change-password`
+---
+## Super Admin Panel
+
+### `GET /admin/dashboard`
+Optional query:
+- `from`
+- `to`
+
+### `GET /admin/users`
+Optional query:
+- `role` = `ADMIN|STATION_ADMIN|USER|OWNER`
+- `status` = `ACTIVE|BLOCKED`
+- `q`
+- `page`
+- `limit`
+
+### `PATCH /admin/users/:userId/status`
+Body:
+```json
+{ "isActive": false, "note": "Fraud review" }
+```
+
+### `GET /admin/pricing`
+
+### `PATCH /admin/pricing`
+Body:
+```json
+{
+  "currency": "INR",
+  "baseFarePerHour": 100,
+  "baseFarePerDay": 450,
+  "securityDepositDefault": 500,
+  "convenienceFeePercent": 3,
+  "minimumConvenienceFee": 9,
+  "taxPercent": 18,
+  "penaltySlabs": 3
+}
+```
+Notes:
+- `penaltySlabs` is a single numeric value.
+- `penaltySlabs: 3` means `₹3 per minute` overstay penalty.
+
+### `GET /admin/commission`
+
+### `PATCH /admin/commission`
+Body:
+```json
+{
+  "platformCommissionPercent": 20,
+  "ownerSharePercent": 80,
+  "franchiseSharePercent": 0
+}
+```
+
+### `GET /admin/settlements`
+Optional query:
+- `status`
+- `userId`
+- `page`
+- `limit`
+
+### `POST /admin/settlements`
+Body:
+```json
+{ "userId": "<ownerId>", "amount": 1000, "note": "Monthly settlement" }
+```
+
+### `PATCH /admin/settlements/:settlementId/status`
+Body:
+```json
+{ "status": "PROCESSING", "note": "Queued for payout" }
+```
+
+### `GET /admin/reports`
+Optional query:
+- `from`
+- `to`
+- `stationId`
+
+### `GET /`
+Optional query:
+- `type`
+- `from`
+- `to`
+- `stationId`
+- `userId`
+- `page`
+- `limit`
+
+### `GET /admin/bookings/:bookingId/invoice`
+
+### `GET /admin/bookings/:bookingId/invoice/pdf`
+
+### `PATCH /admin/bookings/:bookingId/refund`
+Body:
+```json
+{ "status": "PROCESSING", "method": "WALLET", "note": "Refund under review" }
+```
+
+### `GET /admin/ledger`
+Optional query:
+- `sourceType`
+- `sourceId`
+- `from`
+- `to`
+- `page`
+- `limit`
+
+### `GET /admin/access-control/admins`
+Optional query:
+- `q`
+- `page`
+- `limit`
+
+### `POST /admin/access-control/admins`
+Body:
+```json
+{
+  "name": "Ops Admin",
+  "email": "ops@example.com",
+  "password": "Ops@123",
+  "mobile": "9000000000",
+  "isActive": true,
+  "permissions": ["dashboard", "reports"]
+}
+```
+
+### `PATCH /admin/access-control/admins/:adminId`
+Body:
+```json
+{
+  "name": "Ops Admin",
+  "mobile": "9000000001",
+  "isActive": true,
+  "permissions": ["dashboard", "reports", "settlements"]
+}
+```
+
+### `GET /admin/audit-logs`
+Optional query:
+- `action`
+- `entityType`
+- `adminId`
+- `from`
+- `to`
+- `page`
+- `limit`
 
 ---
 

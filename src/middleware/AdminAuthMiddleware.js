@@ -22,11 +22,15 @@ module.exports = () => {
       if (!["ADMIN"].includes(admin.role)) {
         throw new Error("invalid_token");
       }
+      if (admin.isActive === false) {
+        throw new Error("invalid_token");
+      }
 
       req.body = {
         ...(req.body || {}),
         adminId: admin._id,
         adminRole: admin.role,
+        adminPermissions: Array.isArray(admin.adminPermissions) ? admin.adminPermissions : [],
         stationId: admin.stationId,
       };
       return next();
@@ -49,5 +53,22 @@ module.exports = () => {
     };
   };
 
-  return { verifyAdminToken, requireRole };
+  const requirePermission = (...permissions) => {
+    return (req, res, next) => {
+      const granted = Array.isArray(req.body.adminPermissions) ? req.body.adminPermissions : [];
+      if (granted.length === 0) return next();
+      if (granted.includes("*")) return next();
+      if (permissions.length === 0) return next();
+
+      const ok = permissions.some((permission) => granted.includes(permission));
+      if (!ok) {
+        req.rCode = 4;
+        req.msg = "forbidden";
+        return ResponseMiddleware(req, res, next);
+      }
+      return next();
+    };
+  };
+
+  return { verifyAdminToken, requireRole, requirePermission };
 };

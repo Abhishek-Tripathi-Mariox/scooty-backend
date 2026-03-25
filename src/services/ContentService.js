@@ -1,4 +1,5 @@
 const { models, mongoose } = require("../models");
+const AuditLogService = require("./AuditLogService");
 
 const PLAN_TYPES = ["HOURLY", "DAY_PASS", "WEEKLY", "MONTHLY"];
 const CONTENT_STATUSES = ["PENDING", "APPROVED", "REJECTED"];
@@ -36,6 +37,8 @@ const normalizePerks = (perks) => {
   };
 
 module.exports = () => {
+  const recordAudit = (payload) => AuditLogService().create(payload);
+
   const listStationAdminPlans = async ({ stationId, status }) => {
     const query = { stationId };
     if (status && CONTENT_STATUSES.includes(String(status).trim().toUpperCase())) {
@@ -99,7 +102,7 @@ module.exports = () => {
       throw err;
     }
 
-    return await models.RidePlan.create({
+    const plan = await models.RidePlan.create({
       stationId,
       createdBy: stationAdminId,
       code,
@@ -113,6 +116,18 @@ module.exports = () => {
       badge: String(payload.badge || "").trim(),
       status: "PENDING",
     });
+
+    await recordAudit({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "RIDE_PLAN_CREATED",
+      entityType: "RidePlan",
+      entityId: plan._id,
+      after: plan,
+      meta: { stationId },
+    });
+
+    return plan;
   };
 
   const updatePlan = async ({ stationId, stationAdminId, planId, payload }) => {
@@ -120,6 +135,7 @@ module.exports = () => {
     if (!stationAdmin) return null;
     const plan = await models.RidePlan.findOne({ _id: planId, stationId, createdBy: stationAdminId });
     if (!plan) return null;
+    const before = plan.toObject();
 
     if (typeof payload.code === "string") {
       const code = payload.code.trim().toUpperCase();
@@ -186,6 +202,17 @@ module.exports = () => {
     plan.rejectionReason = "";
     plan.approvedBy = undefined;
     await plan.save();
+
+    await recordAudit({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "RIDE_PLAN_UPDATED",
+      entityType: "RidePlan",
+      entityId: plan._id,
+      before,
+      after: plan,
+      meta: { stationId },
+    });
     return plan;
   };
 
@@ -216,11 +243,22 @@ module.exports = () => {
 
     const plan = await models.RidePlan.findById(planId);
     if (!plan) return null;
+    const before = plan.toObject();
 
     plan.status = normalizedStatus;
     plan.approvedBy = adminId;
     plan.rejectionReason = normalizedStatus === "REJECTED" ? String(rejectionReason || "").trim() : "";
     await plan.save();
+
+    await recordAudit({
+      actorId: adminId,
+      action: `RIDE_PLAN_${normalizedStatus}`,
+      entityType: "RidePlan",
+      entityId: plan._id,
+      before,
+      after: plan,
+      meta: { status: normalizedStatus },
+    });
     return plan;
   };
 
@@ -255,13 +293,25 @@ module.exports = () => {
       throw err;
     }
 
-    return await models.Faq.create({
+    const faq = await models.Faq.create({
       stationId,
       createdBy: stationAdminId,
       question,
       answer,
       status: "PENDING",
     });
+
+    await recordAudit({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "FAQ_CREATED",
+      entityType: "Faq",
+      entityId: faq._id,
+      after: faq,
+      meta: { stationId },
+    });
+
+    return faq;
   };
 
   const updateFaq = async ({ stationId, stationAdminId, faqId, payload }) => {
@@ -269,6 +319,7 @@ module.exports = () => {
     if (!stationAdmin) return null;
     const faq = await models.Faq.findOne({ _id: faqId, stationId, createdBy: stationAdminId });
     if (!faq) return null;
+    const before = faq.toObject();
 
     if (typeof payload.question === "string") {
       const question = payload.question.trim();
@@ -294,6 +345,17 @@ module.exports = () => {
     faq.rejectionReason = "";
     faq.approvedBy = undefined;
     await faq.save();
+
+    await recordAudit({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "FAQ_UPDATED",
+      entityType: "Faq",
+      entityId: faq._id,
+      before,
+      after: faq,
+      meta: { stationId },
+    });
     return faq;
   };
 
@@ -324,11 +386,22 @@ module.exports = () => {
 
     const faq = await models.Faq.findById(faqId);
     if (!faq) return null;
+    const before = faq.toObject();
 
     faq.status = normalizedStatus;
     faq.approvedBy = adminId;
     faq.rejectionReason = normalizedStatus === "REJECTED" ? String(rejectionReason || "").trim() : "";
     await faq.save();
+
+    await recordAudit({
+      actorId: adminId,
+      action: `FAQ_${normalizedStatus}`,
+      entityType: "Faq",
+      entityId: faq._id,
+      before,
+      after: faq,
+      meta: { status: normalizedStatus },
+    });
     return faq;
   };
 

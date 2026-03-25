@@ -1,4 +1,5 @@
 const { models } = require("../models");
+const AuditLogService = require("./AuditLogService");
 
 const faqs = () => [
   {
@@ -31,7 +32,16 @@ module.exports = () => {
       err.code = "REQUIRED_FIELDS_MISSING";
       throw err;
     }
-    return await models.SupportTicket.create({ userId: ownerId, subject: s, message: m, status: "OPEN" });
+    const ticket = await models.SupportTicket.create({ userId: ownerId, subject: s, message: m, status: "OPEN" });
+    await AuditLogService().create({
+      actorId: ownerId,
+      actorRole: "OWNER",
+      action: "OWNER_SUPPORT_TICKET_CREATED",
+      entityType: "SupportTicket",
+      entityId: ticket._id,
+      after: ticket,
+    });
+    return ticket;
   };
 
   const fetchTicket = async (ownerId, ticketId) => {

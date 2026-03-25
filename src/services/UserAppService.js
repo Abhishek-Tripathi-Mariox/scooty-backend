@@ -1,5 +1,7 @@
 const { models, mongoose } = require("../models");
 const ContentService = require("./ContentService");
+const AuditLogService = require("./AuditLogService");
+const FinanceService = require("./FinanceService");
 
 const BOOKING_STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED"];
 const ACTIVE_BOOKING_STATUSES = ["CONFIRMED", "ACTIVE"];
@@ -53,6 +55,11 @@ const pickVehicleImage = (vehicle) =>
 const buildUnlockCode = (bookingId) => `MV-${String(bookingId).slice(-6).toUpperCase()}`;
 
 module.exports = () => {
+  const getAdminPricing = async () => {
+    const setting = await models.AdminSetting.findOne({ key: "pricing" }).lean();
+    return setting?.value || {};
+  };
+
   const createNotification = async ({ userId, type = "SYSTEM", title, message, meta = {} }) => {
     return await models.Notification.create({
       userId,
@@ -204,9 +211,15 @@ module.exports = () => {
     }
 
     const baseFare = round2(plan.price);
-    const securityDeposit = round2(plan.securityDeposit);
-    const convenienceFee = round2(Math.max(9, Math.round(baseFare * 0.03)));
-    const tax = round2((baseFare + convenienceFee) * 0.18);
+    const pricingConfig = await getAdminPricing();
+    const convenienceFeePercent = Number(pricingConfig.convenienceFeePercent ?? 3);
+    const minimumConvenienceFee = Number(pricingConfig.minimumConvenienceFee ?? 9);
+    const taxPercent = Number(pricingConfig.taxPercent ?? 18);
+    const securityDeposit = round2(plan.securityDeposit || pricingConfig.securityDepositDefault || 0);
+    const convenienceFee = round2(
+      Math.max(minimumConvenienceFee, Math.round(baseFare * (convenienceFeePercent / 100))),
+    );
+    const tax = round2((baseFare + convenienceFee) * (taxPercent / 100));
     const subtotal = round2(baseFare + securityDeposit + convenienceFee + tax);
     const requestedWalletUse = Math.max(0, Number(walletToUse || 0));
     const walletUsed = round2(Math.min(requestedWalletUse, Number(user.walletBalance || 0), subtotal - referralDiscount));
@@ -511,12 +524,67 @@ module.exports = () => {
       await user.save();
     }
 
+    const finance = FinanceService();
+    if (quote.pricing.walletUsed > 0) {
+      await finance.recordTransaction({
+        userId,
+        role: "USER",
+        type: "WALLET_DEBIT",
+        direction: "DEBIT",
+        status: "SUCCESS",
+        amount: quote.pricing.walletUsed,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: "Wallet used for booking",
+        meta: { bookingId: booking._id },
+        stationId: quote.pickupStation._id,
+        createdAt: booking.createdAt,
+      });
+    }
+
+    if (booking.payment?.status === "PAID") {
+      await finance.recordTransaction({
+        userId,
+        role: "USER",
+        type: "BOOKING_PAYMENT",
+        direction: "DEBIT",
+        status: "SUCCESS",
+        amount: quote.pricing.totalPayable,
+        taxAmount: quote.pricing.tax,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: `Payment for ${quote.plan.name} booking`,
+        meta: { bookingId: booking._id },
+        stationId: quote.pickupStation._id,
+        createdAt: booking.payment?.paidAt || booking.createdAt,
+      });
+      await finance.postBookingPaymentJournal({
+        booking,
+        walletUsed: quote.pricing.walletUsed,
+        paidAmount: quote.pricing.totalPayable,
+      });
+    }
+
     await createNotification({
       userId,
       type: "RIDE",
       title: "Booking created",
       message: `Your ${quote.plan.name} booking at ${quote.pickupStation.name} is ${autoConfirm ? "confirmed" : "awaiting payment"}.`,
       meta: { bookingId: booking._id, status: booking.status },
+    });
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "BOOKING_CREATED",
+      entityType: "Booking",
+      entityId: booking._id,
+      after: booking.toObject(),
+      meta: { autoConfirm, paymentMethod: paymentMethod || null },
     });
 
     return await models.Booking.findById(booking._id)
@@ -563,6 +631,7 @@ module.exports = () => {
       throw err;
     }
 
+    const before = booking.toObject();
     booking.status = "CONFIRMED";
     booking.payment = {
       status: "PAID",
@@ -573,6 +642,29 @@ module.exports = () => {
     };
     await booking.save();
 
+    await FinanceService().recordTransaction({
+      userId,
+      role: "USER",
+      type: "BOOKING_PAYMENT",
+      direction: "DEBIT",
+      status: "SUCCESS",
+      amount: booking.pricing?.totalPayable || 0,
+      taxAmount: booking.pricing?.tax || 0,
+      sourceType: "Booking",
+      sourceId: booking._id,
+      bookingId: booking._id,
+      referenceId: booking.payment.referenceId,
+      description: `Payment for ${booking.planName || booking.planCode || "booking"}`,
+      meta: { bookingId: booking._id },
+      stationId: booking.pickupStationId,
+      createdAt: booking.payment.paidAt,
+    });
+    await FinanceService().postBookingPaymentJournal({
+      booking,
+      walletUsed: booking.pricing?.walletUsed || 0,
+      paidAmount: booking.pricing?.totalPayable || 0,
+    });
+
     await createNotification({
       userId,
       type: "RIDE",
@@ -581,10 +673,20 @@ module.exports = () => {
       meta: { bookingId: booking._id },
     });
 
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "BOOKING_PAYMENT_CONFIRMED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+    });
+
     return await fetchBooking({ userId, bookingId });
   };
 
-  const startRide = async ({ userId, bookingId }) => {
+  const startRide = async ({ userId, bookingId, unlockCode }) => {
     const booking = await models.Booking.findOne({ _id: bookingId, userId });
     if (!booking) return null;
 
@@ -594,6 +696,15 @@ module.exports = () => {
       throw err;
     }
 
+    const expectedCode = String(booking.unlockCode || "").trim().toUpperCase();
+    const providedCode = String(unlockCode || "").trim().toUpperCase();
+    if (!expectedCode || !providedCode || expectedCode !== providedCode) {
+      const err = new Error("Invalid unlock code");
+      err.code = "INVALID_UNLOCK_CODE";
+      throw err;
+    }
+
+    const before = booking.toObject();
     booking.status = "ACTIVE";
     booking.rideStartedAt = new Date();
     await booking.save();
@@ -606,6 +717,16 @@ module.exports = () => {
       title: "Ride started",
       message: "Your scooty ride has started. Ride safe.",
       meta: { bookingId: booking._id },
+    });
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "RIDE_STARTED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
     });
 
     return await fetchBooking({ userId, bookingId });
@@ -636,6 +757,7 @@ module.exports = () => {
     const startedAt = booking.rideStartedAt || booking.startAt;
     const durationMinutes = Math.max(1, Math.round((endedAt.getTime() - new Date(startedAt).getTime()) / 60000));
 
+    const before = booking.toObject();
     booking.status = "COMPLETED";
     booking.dropStationId = finalDropStationId;
     booking.parkingPhotoUrl = String(parkingPhotoUrl || booking.parkingPhotoUrl || "").trim();
@@ -655,12 +777,110 @@ module.exports = () => {
       },
     );
 
+    const finance = FinanceService();
+    const vehicle = await models.Vehicle.findById(booking.vehicleId).lean();
+    const ownerId = vehicle?.ownerId || null;
+    const penalty = await finance.calculatePenalty({
+      booking,
+      actualDurationMinutes: durationMinutes,
+    });
+    booking.meta = {
+      ...(booking.meta || {}),
+      penalty,
+    };
+    await booking.save();
+
+    if (ownerId) {
+      const breakdown = await finance.getBreakdown(booking);
+      await finance.recordTransaction({
+        userId: ownerId,
+        role: "OWNER",
+        type: "OWNER_EARNING",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: breakdown.ownerAmount,
+        commissionAmount: breakdown.platformAmount,
+        ownerAmount: breakdown.ownerAmount,
+        platformAmount: breakdown.platformAmount,
+        taxAmount: breakdown.taxAmount,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: `Earning for ${booking.planName || booking.planCode || "ride"}`,
+        meta: { bookingId: booking._id, ownerId },
+        stationId: booking.pickupStationId,
+        createdAt: endedAt,
+      });
+
+      await finance.recordTransaction({
+        userId: userId,
+        role: "ADMIN",
+        type: "PLATFORM_COMMISSION",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: breakdown.platformAmount,
+        commissionAmount: breakdown.platformAmount,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: `Platform commission for ${booking.planName || booking.planCode || "ride"}`,
+        meta: { bookingId: booking._id, ownerId },
+        stationId: booking.pickupStationId,
+        createdAt: endedAt,
+      });
+
+      await finance.recordTransaction({
+        userId: userId,
+        role: "ADMIN",
+        type: "GST_COLLECTION",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: breakdown.taxAmount,
+        taxAmount: breakdown.taxAmount,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: `GST for ${booking.planName || booking.planCode || "ride"}`,
+        meta: { bookingId: booking._id, ownerId },
+        stationId: booking.pickupStationId,
+        createdAt: endedAt,
+      });
+      await finance.postRideCompletionJournal({
+        booking,
+        breakdown,
+      });
+    }
+
+    booking.refund = {
+      ...(booking.refund || {}),
+      status: booking.pricing?.securityDeposit > 0 ? "PENDING" : "NOT_APPLICABLE",
+      amount: Number(booking.pricing?.securityDeposit || 0),
+      method: "WALLET",
+      requestedAt: booking.pricing?.securityDeposit > 0 ? endedAt : booking.refund?.requestedAt,
+      note: booking.pricing?.securityDeposit > 0 ? "Security deposit pending refund review" : booking.refund?.note || "",
+    };
+    await booking.save();
+
     await createNotification({
       userId,
       type: "RIDE",
       title: "Ride completed",
       message: "Your ride has been completed successfully.",
       meta: { bookingId: booking._id },
+    });
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "RIDE_COMPLETED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+      meta: { durationMinutes, dropStationId: finalDropStationId },
     });
 
     return await fetchBooking({ userId, bookingId });
@@ -727,6 +947,30 @@ module.exports = () => {
     await Promise.all([
       user.save(),
       referrer.save(),
+      FinanceService().recordTransaction({
+        userId,
+        role: "USER",
+        type: "REFERRAL_BONUS",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: 100,
+        sourceType: "Referral",
+        referenceId: normalized,
+        description: "Referral bonus credited",
+        meta: { referralCode: normalized, referrerId: referrer._id },
+      }),
+      FinanceService().recordTransaction({
+        userId: referrer._id,
+        role: "USER",
+        type: "REFERRAL_BONUS",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: 100,
+        sourceType: "Referral",
+        referenceId: normalized,
+        description: "Referral reward earned",
+        meta: { referralCode: normalized, referredUserId: user._id },
+      }),
       createNotification({
         userId,
         type: "SYSTEM",
@@ -742,6 +986,15 @@ module.exports = () => {
         meta: { referredUserId: user._id },
       }),
     ]);
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "REFERRAL_CODE_APPLIED",
+      entityType: "User",
+      entityId: user._id,
+      meta: { referralCode: normalized, referrerId: referrer._id },
+    });
 
     return await referralSummary({ userId });
   };
@@ -792,12 +1045,23 @@ module.exports = () => {
       throw err;
     }
 
-    return await models.SupportTicket.create({
+    const ticket = await models.SupportTicket.create({
       userId,
       subject: normalizedSubject,
       message: normalizedMessage,
       status: "OPEN",
     });
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "SUPPORT_TICKET_CREATED",
+      entityType: "SupportTicket",
+      entityId: ticket._id,
+      after: ticket,
+    });
+
+    return ticket;
   };
 
   const fetchTicket = async ({ userId, ticketId }) => {
@@ -831,6 +1095,57 @@ module.exports = () => {
     };
   };
 
+  const transactionHistory = async ({ userId, type, from, to, page, limit }) => {
+    return await FinanceService().listTransactions({
+      userId,
+      role: "USER",
+      type,
+      from,
+      to,
+      page,
+      limit,
+    });
+  };
+
+  const bookingInvoice = async ({ userId, bookingId }) => {
+    const booking = await models.Booking.findOne({ _id: bookingId, userId })
+      .populate("vehicleId", "modelName registrationNumber photos ownerId")
+      .populate("pickupStationId", "name address")
+      .populate("dropStationId", "name address")
+      .populate("userId", "name email mobile")
+      .lean();
+    if (!booking) return null;
+
+    return await FinanceService().buildBookingInvoice({
+      bookingDoc: booking,
+      customer: {
+        id: booking.userId?._id || booking.userId || null,
+        name: booking.userId?.name || "",
+        mobile: booking.userId?.mobile || "",
+        email: booking.userId?.email || "",
+      },
+    });
+  };
+
+  const bookingRefund = async ({ userId, bookingId }) => {
+    const booking = await models.Booking.findOne({ _id: bookingId, userId })
+      .populate("vehicleId", "modelName registrationNumber photos ownerId")
+      .populate("pickupStationId", "name address")
+      .populate("dropStationId", "name address")
+      .lean();
+    if (!booking) return null;
+
+    return {
+      bookingId: booking._id,
+      refund: booking.refund || {
+        status: "NOT_APPLICABLE",
+        amount: 0,
+      },
+      payment: booking.payment || {},
+      pricing: booking.pricing || {},
+    };
+  };
+
   return {
     listPlans,
     listStations,
@@ -854,5 +1169,8 @@ module.exports = () => {
     createTicket,
     fetchTicket,
     walletSummary,
+    transactionHistory,
+    bookingInvoice,
+    bookingRefund,
   };
 };

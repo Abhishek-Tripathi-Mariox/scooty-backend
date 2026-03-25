@@ -2,6 +2,7 @@ const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const { generateToken } = require("../util/tokenUtils");
 const { comparePassword, hashPassword } = require("../util/password");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const sanitizeAdmin = (admin) => {
@@ -25,6 +26,10 @@ module.exports = {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "Invalid credentials");
     }
+    if (admin.isActive === false) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "Invalid credentials");
+    }
 
     const ok = await comparePassword(password, admin.passwordHash);
     if (!ok) {
@@ -33,6 +38,14 @@ module.exports = {
     }
 
     const token = generateToken({ user_id: admin._id.toString(), role: admin.role });
+    await AuditLogService().create({
+      actorId: admin._id,
+      actorRole: "ADMIN",
+      action: "ADMIN_LOGIN_SUCCESS",
+      entityType: "Auth",
+      entityId: admin._id,
+      meta: { email },
+    });
     req.rData = { token, admin: sanitizeAdmin(admin) };
     req.msg = "admin_login_success";
     return ResponseMiddleware(req, res, next);
@@ -57,6 +70,10 @@ module.exports = {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Admin not found");
     }
+    if (admin.isActive === false) {
+      req.rCode = 4;
+      return ResponseMiddleware(req, res, next, "forbidden");
+    }
 
     const ok = await comparePassword(currentPassword, admin.passwordHash);
     if (!ok) {
@@ -66,6 +83,14 @@ module.exports = {
 
     admin.passwordHash = await hashPassword(newPassword);
     await admin.save();
+
+    await AuditLogService().create({
+      actorId: adminId,
+      action: "ADMIN_PASSWORD_CHANGED",
+      entityType: "User",
+      entityId: admin._id,
+      meta: { selfService: true },
+    });
 
     req.rData = { ok: true };
     req.msg = "password_changed";

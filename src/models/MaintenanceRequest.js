@@ -14,6 +14,11 @@ const MaintenanceRequestSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    stationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Station",
+      index: true,
+    },
     issueType: {
       type: String,
       enum: ["BATTERY", "BRAKE", "TIRE", "ELECTRICAL", "BODY", "MOTOR", "OTHER"],
@@ -35,5 +40,6 @@ const MaintenanceRequestSchema = new mongoose.Schema(
 );
 
 MaintenanceRequestSchema.index({ userId: 1, createdAt: -1 });
+MaintenanceRequestSchema.index({ stationId: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("MaintenanceRequest", MaintenanceRequestSchema);

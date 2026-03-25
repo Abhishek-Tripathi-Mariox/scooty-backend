@@ -2,6 +2,7 @@ const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const { generateOtp, storeOtp, verifyOtp } = require("../util/otpUtil");
 const { generateToken } = require("../util/tokenUtils");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 
 const normalizeMobile = (mobile) => String(mobile || "").replace(/\D/g, "");
 
@@ -18,6 +19,12 @@ module.exports = {
     await storeOtp(mobile, otp);
     console.log(`OTP for ${mobile}: ${otp}`); // Log OTP for development/testing  
     console.log(`OTP generated and stored for ${mobile}`);
+    await AuditLogService().create({
+      actorRole: "USER",
+      action: "USER_OTP_SENT",
+      entityType: "Auth",
+      meta: { mobile },
+    });
     req.rData = {
       mobile,
       // For development/testing only
@@ -56,6 +63,14 @@ module.exports = {
       user.name = name;
     }
     await user.save();
+    await AuditLogService().create({
+      actorId: user._id,
+      actorRole: "USER",
+      action: "USER_OTP_VERIFIED",
+      entityType: "Auth",
+      entityId: user._id,
+      meta: { mobile },
+    });
 
     const token = generateToken({ user_id: user._id.toString(), role: "USER" });
 

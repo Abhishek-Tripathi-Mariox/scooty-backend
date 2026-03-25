@@ -176,6 +176,7 @@ Response:
 Body:
 ```json
 {
+  "ownerId": "<ownerId>",
   "modelName": "Ola S1 Pro",
   "registrationNumber": "KA-01-AB-1234",
   "chassisNumber": "CHASSIS123",
@@ -184,6 +185,7 @@ Body:
 }
 ```
 Notes:
+- `ownerId` should be the authenticated station admin id. If sent, it must match the station admin id.
 - `stationId` is taken from the authenticated station admin profile.
 - If `stationId` is sent in the body, it must match the station admin's station.
 - Multipart upload is supported with the same file field names as owner vehicle add.
@@ -239,6 +241,16 @@ Body:
 { "reason": "Customer requested cancellation" }
 ```
 
+### `GET /station-admin/bookings/:bookingId/invoice`
+
+### `GET /station-admin/bookings/:bookingId/invoice/pdf`
+
+### `PATCH /station-admin/bookings/:bookingId/refund`
+Body:
+```json
+{ "status": "PROCESSING", "method": "WALLET", "note": "Refund under review" }
+```
+
 ---
 
 ## Ride Monitoring
@@ -258,6 +270,19 @@ Body:
 ```json
 { "note": "Ended from control room" }
 ```
+
+---
+
+## Finance / Reports
+
+### `GET /station-admin/transactions`
+Optional query:
+- `stationId`
+- `type`
+- `from`
+- `to`
+- `page`
+- `limit`
 
 ### `POST /station-admin/rides/:rideId/lock-vehicle`
 Body:

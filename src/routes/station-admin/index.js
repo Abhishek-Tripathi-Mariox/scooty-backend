@@ -116,5 +116,9 @@ router.patch(
 
 // ---------------------------------------Reports-- 
 router.get("/reports", ErrorHandle(StationAdminOperationsController.reports));
+router.get("/transactions", ErrorHandle(StationAdminOperationsController.transactions));
+router.get("/bookings/:bookingId/invoice", ErrorHandle(StationAdminOperationsController.bookingInvoice));
+router.get("/bookings/:bookingId/invoice/pdf", ErrorHandle(StationAdminOperationsController.bookingInvoicePdf));
+router.patch("/bookings/:bookingId/refund", ErrorHandle(StationAdminOperationsController.bookingRefund));
 
 module.exports = router;

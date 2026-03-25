@@ -8,12 +8,16 @@ const con = mongoose.connection;
 
 const models = {
   User: require("./User"),
+  AdminSetting: require("./AdminSetting"),
+  AuditLog: require("./AuditLog"),
   Station: require("./Station"),
   RidePlan: require("./RidePlan"),
   Faq: require("./Faq"),
   Bank: require("./Bank"),
   Vehicle: require("./Vehicle"),
   Booking: require("./Booking"),
+  Transaction: require("./Transaction"),
+  LedgerJournal: require("./LedgerJournal"),
   Notification: require("./Notification"),
   PayoutRequest: require("./PayoutRequest"),
   MaintenanceRequest: require("./MaintenanceRequest"),
