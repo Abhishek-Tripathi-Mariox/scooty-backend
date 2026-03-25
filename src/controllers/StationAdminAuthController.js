@@ -1,5 +1,6 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 const { generateToken } = require("../util/tokenUtils");
 const { comparePassword, hashPassword } = require("../util/password");
 const {
@@ -10,8 +11,39 @@ const {
   getOtpTransaction,
   refreshOtpTransaction,
 } = require("../util/otpUtil");
+const { stationAdminOtpEmailTemplate } = require("../util/emailTemplates");
+const mailService = require("../util/mail")();
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const buildStationAdminOtp = () => process.env.MASTER_OTP_LOGIN || "123456";
+const getStationAdminByEmail = async (email) =>
+  await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+const sendStationAdminOtpEmail = async ({
+  email,
+  otp,
+  name = "Station Admin",
+  purpose = "login",
+  expiresInSec = 300,
+}) => {
+  const subject =
+    purpose === "forgot-password"
+      ? "Scooty Rental - Station Admin Password Reset OTP"
+      : "Scooty Rental - Station Admin Login OTP";
+
+  const html = stationAdminOtpEmailTemplate({
+    name,
+    otp,
+    expiresInSec,
+    purpose,
+  });
+
+  const text = `Your OTP for ${purpose === "forgot-password" ? "password reset" : "login"} is ${otp}. It expires in ${Math.max(
+    1,
+    Math.ceil(Number(expiresInSec || 300) / 60),
+  )} minute(s).`;
+
+  await mailService.sendMail(email, subject, text, html);
+};
 
 module.exports = {
   login: async (req, res, next) => {
@@ -38,6 +70,14 @@ module.exports = {
       user_id: stationAdmin._id.toString(),
       role: "STATION_ADMIN",
     });
+    await AuditLogService().create({
+      actorId: stationAdmin._id,
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_LOGIN_SUCCESS",
+      entityType: "Auth",
+      entityId: stationAdmin._id,
+      meta: { email },
+    });
     req.rData = { token, stationAdmin };
     req.msg = "admin_login_success";
     return ResponseMiddleware(req, res, next);
@@ -50,7 +90,7 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "Valid email is required");
     }
 
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await getStationAdminByEmail(email);
     if (!stationAdmin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Station admin not found");
@@ -58,11 +98,15 @@ module.exports = {
 
     const identifier = `stationadmin:${email}`;
     const { transactionId, expiresInSec } = await createOtpTransaction(identifier);
-    const otp = generateOtp();
+    const otp = buildStationAdminOtp();
     await storeOtp(identifier, otp);
-
-    // Integrate real email provider here (SES/SMTP/etc.). For now, log only.
-    console.log("StationAdmin OTP generated", { email });
+    await sendStationAdminOtpEmail({
+      email,
+      otp,
+      name: stationAdmin.name || "Station Admin",
+      purpose: "login",
+      expiresInSec,
+    });
 
     req.rData = {
       email,
@@ -70,6 +114,12 @@ module.exports = {
       expiresInSec,
       otp: process.env.RETURN_OTP === "true" ? otp : undefined,
     };
+    await AuditLogService().create({
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_OTP_SENT",
+      entityType: "Auth",
+      meta: { email, purpose: "login" },
+    });
     req.msg = "otp_sent";
     return ResponseMiddleware(req, res, next);
   },
@@ -88,18 +138,32 @@ module.exports = {
     }
 
     // NOTE: No DB query here (as requested)
-    // const otp = generateOtp();
-    const otp = process.env.MASTER_OTP_LOGIN || "123456"; // For development/testing, use a fixed OTP or environment variable 
-
+    const otp = buildStationAdminOtp();
     await storeOtp(txn.identifier, otp);
     await refreshOtpTransaction(transactionId);
 
     const email = String(txn.identifier).replace(/^stationadmin:/, "");
+    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    if (stationAdmin) {
+      await sendStationAdminOtpEmail({
+        email,
+        otp,
+        name: stationAdmin.name || "Station Admin",
+        purpose: "login",
+        expiresInSec: 300,
+      });
+    }
     req.rData = {
       email,
       transactionId,
       otp: process.env.RETURN_OTP === "true" ? otp : undefined,
     };
+    await AuditLogService().create({
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_OTP_RESENT",
+      entityType: "Auth",
+      meta: { email, purpose: "login" },
+    });
     req.msg = "otp_sent";
     return ResponseMiddleware(req, res, next);
   },
@@ -128,6 +192,14 @@ module.exports = {
     const token = generateToken({
       user_id: stationAdmin._id.toString(),
       role: "STATION_ADMIN",
+    });
+    await AuditLogService().create({
+      actorId: stationAdmin._id,
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_OTP_VERIFIED",
+      entityType: "Auth",
+      entityId: stationAdmin._id,
+      meta: { email },
     });
     req.rData = { token, stationAdmin };
     req.msg = "otp_verified";
@@ -166,6 +238,15 @@ module.exports = {
     stationAdmin.passwordHash = await hashPassword(newPassword);
     await stationAdmin.save();
 
+    await AuditLogService().create({
+      actorId: stationAdminId,
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_PASSWORD_CHANGED",
+      entityType: "User",
+      entityId: stationAdmin._id,
+      meta: { selfService: true },
+    });
+
     req.rData = { ok: true };
     req.msg = "password_changed";
     return ResponseMiddleware(req, res, next);
@@ -187,18 +268,28 @@ module.exports = {
 
     const identifier = `stationadmin_forgot:${email}`;
     const { transactionId, expiresInSec } = await createOtpTransaction(identifier);
-    // const otp = generateOtp();
-    const otp=process.env.MASTER_OTP_LOGIN || "123456"; // For development/testing, use a fixed OTP or environment variable   
+    const otp = buildStationAdminOtp();
     await storeOtp(identifier, otp);
-
-    console.log("StationAdmin forgot-password OTP generated", { email });
+    await sendStationAdminOtpEmail({
+      email,
+      otp,
+      name: stationAdmin.name || "Station Admin",
+      purpose: "forgot-password",
+      expiresInSec,
+    });
 
     req.rData = {
       email,
       transactionId,
       expiresInSec,
-      otp: otp
+      otp: process.env.RETURN_OTP === "true" ? otp : undefined,
     };
+    await AuditLogService().create({
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_OTP_SENT",
+      entityType: "Auth",
+      meta: { email, purpose: "forgot-password" },
+    });
     req.msg = "otp_sent";
     return ResponseMiddleware(req, res, next);
   },
@@ -217,17 +308,32 @@ module.exports = {
     }
 
     // NOTE: No DB query here (as requested)
-    // const otp = generateOtp();
-    const otp=process.env.MASTER_OTP_LOGIN
+    const otp = buildStationAdminOtp();
     await storeOtp(txn.identifier, otp);
     await refreshOtpTransaction(transactionId);
 
     const email = String(txn.identifier).replace(/^stationadmin_forgot:/, "");
+    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    if (stationAdmin) {
+      await sendStationAdminOtpEmail({
+        email,
+        otp,
+        name: stationAdmin.name || "Station Admin",
+        purpose: "forgot-password",
+        expiresInSec: 300,
+      });
+    }
     req.rData = {
       email,
       transactionId,
-      otp
+      otp: process.env.RETURN_OTP === "true" ? otp : undefined,
     };
+    await AuditLogService().create({
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_OTP_RESENT",
+      entityType: "Auth",
+      meta: { email, purpose: "forgot-password" },
+    });
     req.msg = "otp_sent";
     return ResponseMiddleware(req, res, next);
   },
@@ -269,6 +375,15 @@ module.exports = {
 
     stationAdmin.passwordHash = await hashPassword(newPassword);
     await stationAdmin.save();
+
+    await AuditLogService().create({
+      actorId: stationAdmin._id,
+      actorRole: "STATION_ADMIN",
+      action: "STATION_ADMIN_PASSWORD_RESET",
+      entityType: "User",
+      entityId: stationAdmin._id,
+      meta: { email },
+    });
 
     req.rData = { ok: true };
     req.msg = "password_changed";

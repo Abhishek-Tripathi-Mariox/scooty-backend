@@ -24,6 +24,7 @@ const UserSchema = new mongoose.Schema(
 
     // Auth (Admin / Station Admin)
     passwordHash: { type: String },
+    adminPermissions: { type: [String], default: [] },
 
     // User wallet + referrals (Customer)
     walletBalance: { type: Number, default: 0 },

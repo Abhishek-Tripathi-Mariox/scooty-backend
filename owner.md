@@ -37,7 +37,15 @@ Success: returns `token` + `owner`.
 ### `GET /owner/dashboard`
 
 ### `GET /owner/earnings`
-Note: currently returns placeholder `0` values until ride/ledger is implemented.
+Returns owner earnings summary derived from booking and payout ledger entries.
+
+### `GET /owner/transactions`
+Optional query:
+- `type`
+- `from`
+- `to`
+- `page`
+- `limit`
 
 ---
 
@@ -120,7 +128,7 @@ Body:
 ```json
 { "modelName": "Ola S1 Pro", "registrationNumber": "KA-01-AB-1234", "chassisNumber": "CHASSIS123", "stationId": "<stationId>" }
 ```
-Creates a draft vehicle.
+Creates a draft vehicle. `stationId` can be any active station.
 
 ### `GET /owner/vehicles/:vehicleId`
 

@@ -55,6 +55,9 @@ module.exports = () => {
   };
 
   const create = async (req, res, next) => {
+    if (req.body.ownerId && !isObjectId(req.body.ownerId)) {
+      return sendValidationError(req, res, next, "ownerId must be a valid id");
+    }
     if (req.body.stationId && !isObjectId(req.body.stationId)) {
       return sendValidationError(req, res, next, "stationId must be a valid id");
     }

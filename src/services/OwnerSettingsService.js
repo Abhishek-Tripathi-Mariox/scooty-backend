@@ -1,4 +1,5 @@
 const { models } = require("../models");
+const AuditLogService = require("./AuditLogService");
 
 const defaultSettings = () => ({
   notifications: {
@@ -20,6 +21,7 @@ module.exports = () => {
   const update = async (ownerId, payload = {}) => {
     const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" });
     if (!owner) return null;
+    const before = owner.toObject();
 
     const incoming = payload.settings || payload;
     owner.settings = { ...(owner.settings || defaultSettings()), ...(incoming || {}) };
@@ -30,9 +32,17 @@ module.exports = () => {
     }
 
     await owner.save();
+    await AuditLogService().create({
+      actorId: ownerId,
+      actorRole: "OWNER",
+      action: "OWNER_SETTINGS_UPDATED",
+      entityType: "User",
+      entityId: owner._id,
+      before,
+      after: owner.toObject(),
+    });
     return owner.settings;
   };
 
   return { fetch, update };
 };
-

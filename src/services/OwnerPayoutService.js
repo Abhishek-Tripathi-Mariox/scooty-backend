@@ -1,4 +1,6 @@
 const { models } = require("../models");
+const AuditLogService = require("./AuditLogService");
+const FinanceService = require("./FinanceService");
 
 const last4 = (s) => {
   const v = String(s || "").replace(/\s+/g, "");
@@ -48,6 +50,31 @@ module.exports = () => {
         upiId: bank.upiId || "",
         fileUrl: bank.fileUrl || "",
       },
+    });
+
+    await FinanceService().recordTransaction({
+      userId: ownerId,
+      role: "OWNER",
+      type: "PAYOUT_REQUEST",
+      direction: "DEBIT",
+      status: "PENDING",
+      amount: n,
+      sourceType: "PayoutRequest",
+      sourceId: payout._id,
+      referenceId: `PO-${String(payout._id).slice(-8).toUpperCase()}`,
+      description: "Payout requested",
+      meta: { payoutId: payout._id },
+      createdAt: payout.createdAt,
+    });
+
+    await AuditLogService().create({
+      actorId: ownerId,
+      actorRole: "OWNER",
+      action: "OWNER_PAYOUT_REQUESTED",
+      entityType: "PayoutRequest",
+      entityId: payout._id,
+      after: payout,
+      meta: { amount: n },
     });
 
     return payout;

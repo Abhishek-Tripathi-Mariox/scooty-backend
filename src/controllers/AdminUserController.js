@@ -1,5 +1,6 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
+const AuditLogService = require("../services/AuditLogService");
 const { hashPassword } = require("../util/password");
 const { models, mongoose } = require("../models");
 
@@ -108,6 +109,15 @@ module.exports = {
       passwordHash,
       stationId: stationId || undefined,
       isActive: true,
+    });
+
+    await AuditLogService().create({
+      actorId: req.body.adminId,
+      action: "STATION_ADMIN_CREATED",
+      entityType: "User",
+      entityId: admin._id,
+      after: sanitizeAdmin(admin),
+      meta: { stationId },
     });
 
     req.rData = { admin: sanitizeAdmin(admin) };

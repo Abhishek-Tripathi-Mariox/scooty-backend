@@ -25,6 +25,7 @@ router.use(OwnerAuthMiddleware().verifyOwnerToken);
 // Dashboard and earnings
 router.get("/dashboard", ErrorHandle(OwnerDashboardController.dashboard));
 router.get("/earnings", ErrorHandle(OwnerEarningsController.list));
+router.get("/transactions", ErrorHandle(OwnerController.transactions));
 
 // Notifications
 router.get("/notifications", ErrorHandle(OwnerNotificationController.list));

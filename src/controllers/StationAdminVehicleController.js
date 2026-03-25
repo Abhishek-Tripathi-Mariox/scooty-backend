@@ -97,9 +97,14 @@ module.exports = {
       throw ex;
     }
 
+    const ownerId = String(req.body.ownerId || stationAdmin._id).trim();
+    if (req.body.ownerId && String(req.body.ownerId).trim() !== String(stationAdmin._id)) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "ownerId must match station admin id");
+    }
     const vehicle = await VehicleService().createDraft(
-      stationAdmin._id,
-      { ...(req.body || {}), stationId },
+      ownerId,
+      { ...(req.body || {}), stationId, actorRole: "STATION_ADMIN" },
       req.files || null,
     );
 

@@ -1,10 +1,50 @@
-const { models } = require("../models");
+const { models, mongoose } = require("../models");
 const fileUploadService = require("../util/s3");
+const AuditLogService = require("./AuditLogService");
 
 const normalizeStr = (v) => (typeof v === "string" ? v.trim() : "");
 const stationVehicleStatuses = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
 const rideStatuses = new Set(["CONFIRMED", "ACTIVE", "COMPLETED"]);
 const maintenanceOpenStatuses = new Set(["OPEN", "IN_PROGRESS"]);
+
+const validateStationId = async (stationId, { required = true } = {}) => {
+  const requested = String(stationId || "").trim();
+  if (!requested) {
+    if (!required) return null;
+    const err = new Error("stationId is required");
+    err.code = "STATION_REQUIRED";
+    throw err;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(requested)) {
+    const err = new Error("stationId must be a valid id");
+    err.code = "INVALID_STATION";
+    throw err;
+  }
+
+  const station = await models.Station.findOne({ _id: requested, isActive: true }).lean();
+  if (!station) {
+    const err = new Error("Station not found");
+    err.code = "STATION_NOT_FOUND";
+    throw err;
+  }
+
+  return station;
+};
+
+const resolveVehicleOwner = async (ownerId) => {
+  const owner = await models.User.findOne({
+    _id: ownerId,
+    role: { $in: ["OWNER", "STATION_ADMIN"] },
+    isActive: true,
+  }).lean();
+  if (!owner) {
+    const err = new Error("Owner not found");
+    err.code = "OWNER_NOT_FOUND";
+    throw err;
+  }
+  return owner;
+};
 
 const formatRelativeTime = (value) => {
   if (!value) return "";
@@ -145,23 +185,34 @@ const formatMaintenanceItem = (request) => ({
 
 module.exports = () => {
   const list = async (ownerId, { status } = {}) => {
+    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+    if (!owner) return [];
     const query = { ownerId };
     if (status) query.status = status;
     return await models.Vehicle.find(query).sort({ createdAt: -1 }).lean();
   };
 
   const fetchByIdLean = async (ownerId, vehicleId) => {
-    return await models.Vehicle.findOne({ _id: vehicleId, ownerId }).lean();
+    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+    if (!owner) return null;
+    const query = { _id: vehicleId, ownerId };
+    return await models.Vehicle.findOne(query).lean();
   };
 
   const fetchByIdDoc = async (ownerId, vehicleId) => {
-    return await models.Vehicle.findOne({ _id: vehicleId, ownerId });
+    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+    if (!owner) return null;
+    const query = { _id: vehicleId, ownerId };
+    return await models.Vehicle.findOne(query);
   };
 
   const createDraft = async (ownerId, payload = {}, files = {}) => {
     try {
       files = files || {};
-      console.log("payload:", payload);
+      await resolveVehicleOwner(ownerId);
+
+      const station = await validateStationId(payload.stationId);
+      const stationId = station._id;
 
       // Ensure nested objects always exist before we touch them
       const photos =
@@ -205,7 +256,7 @@ module.exports = () => {
         modelName: normalizeStr(payload.modelName),
         registrationNumber: normalizeStr(payload.registrationNumber),
         chassisNumber: normalizeStr(payload.chassisNumber),
-        stationId: payload.stationId || undefined,
+        stationId,
         batteryPercent:
           payload.batteryPercent === undefined || payload.batteryPercent === null || payload.batteryPercent === ""
             ? null
@@ -216,6 +267,16 @@ module.exports = () => {
         // ✅ IMPORTANT: saving here
         photos,
         documents,
+      });
+
+      await AuditLogService().create({
+        actorId: ownerId,
+        actorRole: payload.actorRole === "STATION_ADMIN" ? "STATION_ADMIN" : "OWNER",
+        action: "VEHICLE_DRAFT_CREATED",
+        entityType: "Vehicle",
+        entityId: vehicle._id,
+        after: vehicle,
+        meta: { stationId },
       });
 
       return vehicle;
@@ -230,6 +291,7 @@ module.exports = () => {
     try {
       const vehicle = await fetchByIdDoc(ownerId, vehicleId);
       if (!vehicle) return null;
+      const before = vehicle.toObject();
 
       const {
         modelName,
@@ -239,11 +301,26 @@ module.exports = () => {
         submit
       } = payload || {};
 
+      const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+      if (!owner) {
+        const err = new Error("Owner not found");
+        err.code = "OWNER_NOT_FOUND";
+        throw err;
+      }
+
+      if (stationId) {
+        const station = await validateStationId(stationId);
+        vehicle.stationId = station._id;
+      } else if (!vehicle.stationId) {
+        const err = new Error("stationId is required");
+        err.code = "STATION_REQUIRED";
+        throw err;
+      }
+
       // ✅ Basic updates
       if (typeof modelName === "string") vehicle.modelName = modelName.trim();
       if (typeof registrationNumber === "string") vehicle.registrationNumber = registrationNumber.trim();
       if (typeof chassisNumber === "string") vehicle.chassisNumber = chassisNumber.trim();
-      if (stationId) vehicle.stationId = stationId;
       if (payload.batteryPercent !== undefined) {
         vehicle.batteryPercent =
           payload.batteryPercent === "" || payload.batteryPercent === null
@@ -324,6 +401,16 @@ module.exports = () => {
       }
 
       await vehicle.save();
+      await AuditLogService().create({
+        actorId: ownerId,
+        actorRole: "OWNER",
+        action: "VEHICLE_UPDATED",
+        entityType: "Vehicle",
+        entityId: vehicle._id,
+        before,
+        after: vehicle.toObject(),
+        meta: { submit: wantsSubmit },
+      });
       return vehicle;
 
     } catch (error) {
@@ -335,16 +422,26 @@ module.exports = () => {
   const requestRemoval = async (ownerId, vehicleId) => {
     const vehicle = await fetchByIdDoc(ownerId, vehicleId);
     if (!vehicle) return null;
+    const before = vehicle.toObject();
     vehicle.status = "REMOVAL_REQUESTED";
     await vehicle.save();
+    await AuditLogService().create({
+      actorId: ownerId,
+      actorRole: "OWNER",
+      action: "VEHICLE_REMOVAL_REQUESTED",
+      entityType: "Vehicle",
+      entityId: vehicle._id,
+      before,
+      after: vehicle.toObject(),
+    });
     return vehicle;
   };
 
   const counts = async (ownerId) => {
-    const pipeline = [
-      { $match: { ownerId } },
-      { $group: { _id: "$status", count: { $sum: 1 } } },
-    ];
+    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+    if (!owner) return {};
+
+    const pipeline = [{ $match: { ownerId } }, { $group: { _id: "$status", count: { $sum: 1 } } }];
     const rows = await models.Vehicle.aggregate(pipeline);
     const out = {};
     for (const r of rows) out[r._id] = r.count;
@@ -515,6 +612,7 @@ module.exports = () => {
 
     const vehicle = await models.Vehicle.findOne({ _id: vehicleId, stationId });
     if (!vehicle) return null;
+    const before = vehicle.toObject();
 
     if (vehicle.status === "IN_RIDE" && normalizedStatus !== "INACTIVE") {
       const err = new Error("Vehicle is currently in ride");
@@ -527,6 +625,15 @@ module.exports = () => {
       vehicle.approvalNote = note.trim();
     }
     await vehicle.save();
+    await AuditLogService().create({
+      actorRole: "STATION_ADMIN",
+      action: "VEHICLE_STATUS_UPDATED",
+      entityType: "Vehicle",
+      entityId: vehicle._id,
+      before,
+      after: vehicle.toObject(),
+      meta: { stationId, status: normalizedStatus },
+    });
     return vehicle.toObject();
   };
 

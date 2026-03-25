@@ -1,5 +1,6 @@
 const { models } = require("../models");
 const fileUploadService = require("../util/s3");
+const AuditLogService = require("./AuditLogService");
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
 
@@ -23,6 +24,7 @@ module.exports = () => {
   const updateOwnerProfile = async ({ ownerId, payload = {}, files = null }) => {
     const owner = await fetchOwnerDocById(ownerId);
     if (!owner) return null;
+    const before = owner.toObject();
 
     const { name, email, city, companyName, adress, state, pincode } = payload || {};
 
@@ -70,6 +72,15 @@ module.exports = () => {
     }
 
     await owner.save();
+    await AuditLogService().create({
+      actorId: ownerId,
+      actorRole: "OWNER",
+      action: "OWNER_PROFILE_UPDATED",
+      entityType: "User",
+      entityId: owner._id,
+      before,
+      after: owner.toObject(),
+    });
     return owner;
   };
 

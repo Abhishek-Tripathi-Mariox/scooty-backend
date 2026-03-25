@@ -1,7 +1,12 @@
 const router = require("express").Router();
 const ErrorHandle = require("../../middleware/ErrorHandleMiddleware");
 const AuthMiddleware = require("../../middleware/AuthMiddleware");
+const AuthController = require("../../controllers/AuthController");
 const UserController = require("../../controllers/UserController");
+
+// Public user auth routes
+router.post("/auth/send-otp", ErrorHandle(AuthController.sendOtp));
+router.post("/auth/verify-otp", ErrorHandle(AuthController.verifyOtp));
 
 // Protected user routes
 router.use(AuthMiddleware().verifyUserToken);
@@ -28,6 +33,11 @@ router.post("/bookings/:bookingId/complete", ErrorHandle(UserController.complete
 // Ride history and wallet
 router.get("/rides/history", ErrorHandle(UserController.rideHistory));
 router.get("/wallet", ErrorHandle(UserController.walletSummary));
+router.get("/transactions", ErrorHandle(UserController.transactions));
+router.get("/bookings/:bookingId/invoice", ErrorHandle(UserController.bookingInvoice));
+router.get("/bookings/:bookingId/refund", ErrorHandle(UserController.bookingRefund));
+router.get("/bookings/:bookingId/invoice/pdf", ErrorHandle(UserController.bookingInvoicePdf));
+router.get("/bookings/:bookingId/receipt/pdf", ErrorHandle(UserController.bookingReceiptPdf));
 
 // Referral
 router.get("/referral", ErrorHandle(UserController.referralSummary));

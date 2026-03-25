@@ -1,5 +1,6 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const { models } = require("../models");
+const AuditLogService = require("../services/AuditLogService");
 
 const toNumber = (value) => {
   const n = Number(value);
@@ -40,6 +41,14 @@ module.exports = {
         ],
       },
       isActive: typeof isActive === "boolean" ? isActive : true,
+    });
+
+    await AuditLogService().create({
+      actorId: req.body.adminId,
+      action: "STATION_CREATED",
+      entityType: "Station",
+      entityId: station._id,
+      after: station,
     });
 
     req.rData = { station };

@@ -14,13 +14,13 @@ Auth header:
 
 ## Auth
 
-### `POST /auth/send-otp`
+### `POST /user/auth/send-otp`
 Body:
 ```json
 { "mobile": "9999999999" }
 ```
 
-### `POST /auth/verify-otp`
+### `POST /user/auth/verify-otp`
 Body:
 ```json
 { "mobile": "9999999999", "otp": "123456", "name": "User Name" }
@@ -112,6 +112,13 @@ Body:
 ```
 
 ### `POST /user/bookings/:bookingId/start`
+Body:
+```json
+{ "unlockCode": "MV-ABC123" }
+```
+Notes:
+- `unlockCode` must match the code stored on the booking.
+- `code` is also accepted as an alias.
 
 ### `POST /user/bookings/:bookingId/complete`
 Body:
@@ -125,6 +132,23 @@ Body:
 ```
 
 ### `GET /user/rides/history`
+
+### `GET /user/transactions`
+Optional query:
+- `type`
+- `from`
+- `to`
+- `page`
+- `limit`
+
+### `GET /user/bookings/:bookingId/invoice`
+
+### `GET /user/bookings/:bookingId/invoice/pdf`
+
+### `GET /user/bookings/:bookingId/receipt/pdf`
+
+### `GET /user/bookings/:bookingId/refund`
+Returns the current refund state for the booking.
 
 ---
 
