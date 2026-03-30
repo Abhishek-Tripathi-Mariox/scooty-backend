@@ -151,7 +151,7 @@ module.exports = {
     const identifier = `admin_forgot:${email}`;
     const { transactionId, expiresInSec } = await createOtpTransaction(identifier);
     // const otp = buildAdminOtp();
-    const otp=proicess.env.MASTER_OTP_LOGIN || "123456";
+    const otp=process.env.MASTER_OTP_LOGIN || "123456";
     await storeOtp(identifier, otp);
     await sendAdminOtpEmail({
       email,
