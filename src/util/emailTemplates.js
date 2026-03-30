@@ -6,15 +6,21 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const stationAdminOtpEmailTemplate = ({
+const buildOtpEmailTemplate = ({
   name = "Station Admin",
   otp,
   expiresInSec = 300,
   purpose = "login",
+  brandName = "Scooty Rental",
+  title = "Station Admin OTP",
+  audience = "station admin",
 }) => {
   const safeName = escapeHtml(name);
   const safeOtp = escapeHtml(otp);
   const safePurpose = purpose === "forgot-password" ? "password reset" : "login";
+  const safeAudience = escapeHtml(audience);
+  const safeTitle = escapeHtml(title);
+  const safeBrandName = escapeHtml(brandName);
   const minutes = Math.max(1, Math.ceil(Number(expiresInSec || 300) / 60));
 
   return `<!doctype html>
@@ -22,7 +28,7 @@ const stationAdminOtpEmailTemplate = ({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Station Admin OTP</title>
+    <title>${safeTitle}</title>
   </head>
   <body style="margin:0;padding:0;background:#d9d5d1;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:linear-gradient(180deg,#d9d5d1 0%,#dfdad5 100%);padding:28px 16px;">
@@ -32,11 +38,11 @@ const stationAdminOtpEmailTemplate = ({
             <tr>
               <td style="padding:30px 32px 18px;text-align:center;">
                 <div style="display:inline-block;background:rgba(255,255,255,0.58);border:1px solid rgba(255,122,26,0.12);border-radius:999px;padding:8px 14px;font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:#ff6a1a;font-weight:700;">
-                  Scooty Rental
+                  ${safeBrandName}
                 </div>
-                <div style="font-size:30px;line-height:1.15;font-weight:800;color:#1f2328;margin-top:18px;letter-spacing:-0.3px;">Station Admin OTP</div>
+                <div style="font-size:30px;line-height:1.15;font-weight:800;color:#1f2328;margin-top:18px;letter-spacing:-0.3px;">${safeTitle}</div>
                 <div style="font-size:15px;line-height:1.7;color:#6b7280;margin-top:10px;max-width:500px;margin-left:auto;margin-right:auto;">
-                  Use this code to complete your ${safePurpose} securely.
+                  Use this code to complete your ${safeAudience} ${safePurpose} securely.
                 </div>
               </td>
             </tr>
@@ -45,7 +51,7 @@ const stationAdminOtpEmailTemplate = ({
                 <div style="background:rgba(255,255,255,0.62);border:1px solid rgba(255,255,255,0.55);border-radius:22px;padding:26px 22px;backdrop-filter:blur(2px);">
                 <div style="font-size:16px;line-height:1.7;margin:0 0 12px;font-weight:700;color:#1f2937;">Hi ${safeName},</div>
                 <div style="font-size:15px;line-height:1.8;margin:0 0 22px;color:#4b5563;">
-                  We received a request for your station admin ${safePurpose}. Enter the one-time password below in the app to continue.
+                  We received a request for your ${safeAudience} ${safePurpose}. Enter the one-time password below in the app to continue.
                 </div>
                 <div style="text-align:center;margin:22px 0 20px;">
                   <div style="display:inline-block;background:linear-gradient(180deg,#fff6ef 0%,#ffe6d2 100%);border:1px solid rgba(255,122,26,0.18);border-radius:18px;padding:18px 28px;font-size:34px;letter-spacing:8px;font-weight:800;color:#ff5a12;box-shadow:0 8px 20px rgba(255,106,26,0.12);">
@@ -71,6 +77,22 @@ const stationAdminOtpEmailTemplate = ({
 </html>`;
 };
 
+const stationAdminOtpEmailTemplate = (options = {}) =>
+  buildOtpEmailTemplate({
+    ...options,
+    title: options.title || "Station Admin OTP",
+    audience: options.audience || "station admin",
+  });
+
+const adminOtpEmailTemplate = (options = {}) =>
+  buildOtpEmailTemplate({
+    ...options,
+    name: options.name || "Admin",
+    title: options.title || "Admin OTP",
+    audience: options.audience || "admin",
+  });
+
 module.exports = {
+  adminOtpEmailTemplate,
   stationAdminOtpEmailTemplate,
 };

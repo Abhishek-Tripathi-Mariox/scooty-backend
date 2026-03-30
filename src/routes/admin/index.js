@@ -11,6 +11,12 @@ const AdminPanelController = require("../../controllers/AdminPanelController");
 
 // Authentication
 router.post("/auth/login", ErrorHandle(AdminAuthController.login));
+router.post("/auth/forgot-password/send-otp", ErrorHandle(AdminAuthController.forgotPasswordSendOtp));
+router.post(
+  "/auth/forgot-password/resend-otp",
+  ErrorHandle(AdminAuthController.forgotPasswordResendOtp),
+);
+router.post("/auth/forgot-password/reset", ErrorHandle(AdminAuthController.forgotPasswordReset));
 
 // Protected routes
 router.use(AdminAuthMiddleware().verifyAdminToken);
