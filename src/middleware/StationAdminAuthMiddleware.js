@@ -17,7 +17,7 @@ module.exports = () => {
       if (!userId) throw new Error("invalid_token");
 
       const stationAdmin = await UserService().fetchByQuery({ _id: userId });
-      if (!stationAdmin || stationAdmin.role !== "STATION_ADMIN") {
+      if (!stationAdmin || (stationAdmin.role !== "STATION_ADMIN" && stationAdmin.role !== "SUB_STATION_ADMIN")) {
         throw new Error("invalid_token");
       }
 

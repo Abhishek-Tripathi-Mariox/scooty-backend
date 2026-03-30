@@ -4,7 +4,7 @@ const UserSchema = new mongoose.Schema(
   {
     role: {
       type: String,
-      enum: ["ADMIN", "STATION_ADMIN", "USER", "OWNER"],
+      enum: ["ADMIN", "STATION_ADMIN", "USER", "OWNER","SUB_STATION_ADMIN"],
       default: "USER",
       index: true,
       required: true,

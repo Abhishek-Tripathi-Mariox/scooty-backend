@@ -35,7 +35,7 @@ Optional query:
 
 ### `GET /admin/users`
 Optional query:
-- `role` = `ADMIN|STATION_ADMIN|USER|OWNER`
+- `role` = `ADMIN|STATION_ADMIN|USER|OWNER|SUB_STATION_ADMIN`
 - `status` = `ACTIVE|BLOCKED`
 - `q`
 - `page`
