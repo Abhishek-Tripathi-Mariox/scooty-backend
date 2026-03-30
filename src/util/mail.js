@@ -11,6 +11,11 @@ const resolveMailConfig = () => ({
 
 module.exports = () => {
   const sendMail = async (rec_mail, subject, text, html) => {
+    if (String(process.env.DISABLE_EMAIL_SEND || "").trim().toLowerCase() === "true") {
+      logger.info("Email send skipped", { to: rec_mail, subject });
+      return { skipped: true };
+    }
+
     const { senderEmail, appPassword, smtpHost, smtpPort, smtpSecure } =
       resolveMailConfig();
 
