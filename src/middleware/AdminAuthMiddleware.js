@@ -31,7 +31,6 @@ module.exports = () => {
         adminId: admin._id,
         adminRole: admin.role,
         adminPermissions: Array.isArray(admin.adminPermissions) ? admin.adminPermissions : [],
-        stationId: admin.stationId,
       };
       return next();
     } catch (ex) {
