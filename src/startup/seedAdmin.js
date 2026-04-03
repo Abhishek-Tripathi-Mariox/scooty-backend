@@ -1,4 +1,4 @@
-const { hashPassword } = require("../util/password");
+const { hashPassword, normalizePassword } = require("../util/password");
 
 module.exports = async function seedAdminIfNeeded(models) {
   console.log("Seeding admin user if needed...");
@@ -7,7 +7,7 @@ module.exports = async function seedAdminIfNeeded(models) {
   const email = String(process.env.SEED_ADMIN_EMAIL || "admin@station.com")
     .trim()
     .toLowerCase();
-  const password = String(process.env.SEED_ADMIN_PASSWORD || "Admin@123");
+  const password = normalizePassword(process.env.SEED_ADMIN_PASSWORD || "Admin@123");
   const name = String(process.env.SEED_ADMIN_NAME || "Admin User").trim();
 
   const exists = await models.User.findOne({ role: "ADMIN", email }).lean();
@@ -26,4 +26,3 @@ module.exports = async function seedAdminIfNeeded(models) {
 
   return { created: true, admin, email };
 };
-

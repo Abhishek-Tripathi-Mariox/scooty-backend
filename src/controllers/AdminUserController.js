@@ -1,8 +1,19 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
 const AuditLogService = require("../services/AuditLogService");
-const { hashPassword } = require("../util/password");
+const { hashPassword, normalizePassword } = require("../util/password");
 const { models, mongoose } = require("../models");
+
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
+const normalizeStationAdminRole = (role) => {
+  const normalized = String(role || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+  if (normalized === "STATIONADMIN") return "STATION_ADMIN";
+  if (normalized === "SUBSTATIONADMIN" || normalized === "SUB_STAION_ADMIN") return "SUB_STATION_ADMIN";
+  return normalized;
+};
 
 const toInt = (v, fallback) => {
   const n = parseInt(String(v), 10);
@@ -23,7 +34,7 @@ module.exports = {
     const limit = Math.min(100, Math.max(1, limitRaw));
     const skip = (page - 1) * limit;
 
-    const query = { role: "STATION_ADMIN" };
+    const query = { role: { $in: STATION_ADMIN_ROLES } };
     const [total, admins] = await Promise.all([
       models.User.countDocuments(query),
       models.User.find(query)
@@ -52,18 +63,28 @@ module.exports = {
   },
 
   createStationAdmin: async (req, res, next) => {
-    const { name, email, mobile, password, stationId } = req.body || {};
+    const { name, email, mobile, password, stationId, role } = req.body || {};
+    if (!role) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "role is required");
+    }
+    const normalizedRole = normalizeStationAdminRole(role);
 
     if (!name || !email || !password) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "name, email, password are required");
     }
 
-    if (!stationId) {
+    if (!["STATION_ADMIN", "SUB_STATION_ADMIN"].includes(normalizedRole)) {
       req.rCode = 0;
-      return ResponseMiddleware(req, res, next, "stationId is required");
+      return ResponseMiddleware(req, res, next, "role must be STATION_ADMIN or SUB_STATION_ADMIN");
     }
-    if (!mongoose.Types.ObjectId.isValid(String(stationId))) {
+
+    if (normalizedRole === "SUB_STATION_ADMIN" && !stationId) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "stationId is required for SUB_STATION_ADMIN");
+    }
+    if (stationId && !mongoose.Types.ObjectId.isValid(String(stationId))) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "Invalid stationId");
     }
@@ -94,15 +115,17 @@ module.exports = {
       }
     }
 
-    const station = await models.Station.findById(stationId).lean();
-    if (!station) {
-      req.rCode = 5;
-      return ResponseMiddleware(req, res, next, "Station not found");
+    if (stationId) {
+      const station = await models.Station.findById(stationId).lean();
+      if (!station) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Station not found");
+      }
     }
 
-    const passwordHash = await hashPassword(password);
+    const passwordHash = await hashPassword(normalizePassword(password));
     const admin = await userService.create({
-      role: "STATION_ADMIN",
+      role: normalizedRole,
       name: String(name).trim(),
       email: normalizedEmail,
       mobile: normalizedMobile,

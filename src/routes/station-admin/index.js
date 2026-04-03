@@ -4,6 +4,7 @@ const StationAdminAuthMiddleware = require("../../middleware/StationAdminAuthMid
 const StationAdminVehicleValidationMiddleware = require("../../middleware/StationAdminVehicleValidationMiddleware");
 
 const StationAdminAuthController = require("../../controllers/StationAdminAuthController");
+const AdminStationController = require("../../controllers/AdminStationController");
 const StationAdminSettingsController = require("../../controllers/StationAdminSettingsController");
 const StationAdminContentController = require("../../controllers/StationAdminContentController");
 const StationAdminVehicleController = require("../../controllers/StationAdminVehicleController");
@@ -36,6 +37,8 @@ router.use(StationAdminAuthMiddleware().verifyStationAdminToken);
 router.get("/me", ErrorHandle(StationAdminSettingsController.me));
 router.patch("/me", ErrorHandle(StationAdminSettingsController.update));
 router.post("/change-password", ErrorHandle(StationAdminAuthController.changePassword));
+router.get("/stations", ErrorHandle(AdminStationController.list));
+router.get("/stations/:stationId", ErrorHandle(AdminStationController.detail));
 
 // ---------------------------------------Dashboard
 router.get("/dashboard", ErrorHandle(StationAdminOperationsController.dashboard));

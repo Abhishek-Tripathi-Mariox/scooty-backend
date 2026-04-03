@@ -1,6 +1,6 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const { generateToken } = require("../util/tokenUtils");
-const { comparePassword, hashPassword } = require("../util/password");
+const { comparePassword, hashPassword, normalizePassword } = require("../util/password");
 const {
   createOtpTransaction,
   getOtpTransaction,
@@ -53,7 +53,7 @@ const getAdminByEmail = async (email) => await UserService().findByEmailDoc(emai
 module.exports = {
   login: async (req, res, next) => {
     const email = normalizeEmail(req.body.email);
-    const password = String(req.body.password || "");
+    const password = normalizePassword(req.body.password);
     if (!email || !password) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "email and password are required");
@@ -91,8 +91,8 @@ module.exports = {
 
   changePassword: async (req, res, next) => {
     const adminId = req.body.adminId;
-    const currentPassword = String(req.body.currentPassword || "");
-    const newPassword = String(req.body.newPassword || "");
+    const currentPassword = normalizePassword(req.body.currentPassword);
+    const newPassword = normalizePassword(req.body.newPassword);
     if (!currentPassword || !newPassword) {
       req.rCode = 0;
       return ResponseMiddleware(
@@ -223,7 +223,7 @@ module.exports = {
   forgotPasswordReset: async (req, res, next) => {
     const transactionId = String(req.body.transactionId || "").trim();
     const otp = String(req.body.otp || "").trim();
-    const newPassword = String(req.body.newPassword || "");
+    const newPassword = normalizePassword(req.body.newPassword);
 
     if (!transactionId || !otp || !newPassword) {
       req.rCode = 0;

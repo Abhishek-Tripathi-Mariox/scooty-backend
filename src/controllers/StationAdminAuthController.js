@@ -2,7 +2,7 @@ const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
 const AuditLogService = require("../services/AuditLogService");
 const { generateToken } = require("../util/tokenUtils");
-const { comparePassword, hashPassword } = require("../util/password");
+const { comparePassword, hashPassword, normalizePassword } = require("../util/password");
 const {
   generateOtp,
   storeOtp,
@@ -15,9 +15,10 @@ const { stationAdminOtpEmailTemplate } = require("../util/emailTemplates");
 const mailService = require("../util/mail")();
 
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 const buildStationAdminOtp = () => process.env.MASTER_OTP_LOGIN || "123456";
 const getStationAdminByEmail = async (email) =>
-  await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+  await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
 const sendStationAdminOtpEmail = async ({
   email,
   otp,
@@ -48,13 +49,13 @@ const sendStationAdminOtpEmail = async ({
 module.exports = {
   login: async (req, res, next) => {
     const email = normalizeEmail(req.body.email);
-    const password = String(req.body.password || "");
+    const password = normalizePassword(req.body.password);
     if (!email || !password) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "email and password are required");
     }
 
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (!stationAdmin) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "Invalid credentials");
@@ -68,7 +69,7 @@ module.exports = {
 
     const token = generateToken({
       user_id: stationAdmin._id.toString(),
-      role: "STATION_ADMIN",
+      role: stationAdmin.role,
     });
     await AuditLogService().create({
       actorId: stationAdmin._id,
@@ -143,7 +144,7 @@ module.exports = {
     await refreshOtpTransaction(transactionId);
 
     const email = String(txn.identifier).replace(/^stationadmin:/, "");
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (stationAdmin) {
       await sendStationAdminOtpEmail({
         email,
@@ -176,7 +177,7 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "email and otp are required");
     }
 
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (!stationAdmin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Station admin not found");
@@ -191,7 +192,7 @@ module.exports = {
 
     const token = generateToken({
       user_id: stationAdmin._id.toString(),
-      role: "STATION_ADMIN",
+      role: stationAdmin.role,
     });
     await AuditLogService().create({
       actorId: stationAdmin._id,
@@ -208,8 +209,8 @@ module.exports = {
 
   changePassword: async (req, res, next) => {
     const stationAdminId = req.body.stationAdminId;
-    const currentPassword = String(req.body.currentPassword || "");
-    const newPassword = String(req.body.newPassword || "");
+    const currentPassword = normalizePassword(req.body.currentPassword);
+    const newPassword = normalizePassword(req.body.newPassword);
     if (!currentPassword || !newPassword) {
       req.rCode = 0;
       return ResponseMiddleware(
@@ -222,7 +223,7 @@ module.exports = {
 
     const stationAdmin = await UserService().fetchDocByQuery({
       _id: stationAdminId,
-      role: "STATION_ADMIN",
+      role: { $in: STATION_ADMIN_ROLES },
     });
     if (!stationAdmin) {
       req.rCode = 5;
@@ -260,7 +261,7 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "Valid email is required");
     }
 
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (!stationAdmin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Station admin not found");
@@ -313,7 +314,7 @@ module.exports = {
     await refreshOtpTransaction(transactionId);
 
     const email = String(txn.identifier).replace(/^stationadmin_forgot:/, "");
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (stationAdmin) {
       await sendStationAdminOtpEmail({
         email,
@@ -341,7 +342,7 @@ module.exports = {
   forgotPasswordReset: async (req, res, next) => {
     const transactionId = String(req.body.transactionId || "").trim();
     const otp = String(req.body.otp || "").trim();
-    const newPassword = String(req.body.newPassword || "");
+    const newPassword = normalizePassword(req.body.newPassword);
 
     if (!transactionId || !otp || !newPassword) {
       req.rCode = 0;
@@ -367,7 +368,7 @@ module.exports = {
     }
 
     const email = String(txn.identifier).replace(/^stationadmin_forgot:/, "");
-    const stationAdmin = await UserService().findByEmailDoc(email, ["STATION_ADMIN"]);
+    const stationAdmin = await UserService().findByEmailDoc(email, STATION_ADMIN_ROLES);
     if (!stationAdmin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Station admin not found");

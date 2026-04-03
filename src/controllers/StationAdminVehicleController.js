@@ -8,6 +8,7 @@ const statusActionMap = {
   ASSIGN_CHARGING: "CHARGING",
   MARK_INACTIVE: "INACTIVE",
 };
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 
 const toInt = (value, fallback) => {
   const parsed = parseInt(String(value), 10);
@@ -35,7 +36,10 @@ const resolveStationId = (stationAdmin, req) => {
 };
 
 const loadStationAdmin = async (stationAdminId) => {
-  const stationAdmin = await UserService().fetchById(stationAdminId);
+  const stationAdmin = await UserService().fetchDocByQuery({
+    _id: stationAdminId,
+    role: { $in: STATION_ADMIN_ROLES },
+  });
   if (!stationAdmin) return null;
   return stationAdmin;
 };

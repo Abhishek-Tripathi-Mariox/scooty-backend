@@ -18,6 +18,11 @@ Auth headers:
 - Station Admin: `Authorization: Bearer <stationAdminToken>`
 - Admin: `Authorization: Bearer <adminToken>`
 
+Notes:
+- Station admin auth supports both `STATION_ADMIN` and `SUB_STATION_ADMIN`.
+- Admin station APIs accept an optional `stationAdminId` when creating stations and station admins.
+- Station admin APIs include `GET /station-admin/stations` and `GET /station-admin/stations/:stationId` for assigned station lookup.
+
 ## User Auth
 
 `POST /user/auth/send-otp`

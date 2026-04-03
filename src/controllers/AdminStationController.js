@@ -1,16 +1,58 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
-const { models } = require("../models");
+const { models, mongoose } = require("../models");
 const AuditLogService = require("../services/AuditLogService");
+const UserService = require("../services/UserService");
+
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 
 const toNumber = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 };
 
+const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const loadStationAdmin = async (stationAdminId) => {
+  const normalizedId = String(stationAdminId || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(normalizedId)) return null;
+
+  return await UserService().fetchDocByQuery({
+    _id: normalizedId,
+    role: { $in: STATION_ADMIN_ROLES },
+  });
+};
+
+const buildStationAdminStationQuery = (stationAdmin) => {
+  if (!stationAdmin) return {};
+
+  const assignedStationId = String(stationAdmin.stationId || "").trim();
+  return {
+    $or: [
+      { stationAdminId: stationAdmin._id },
+      ...(assignedStationId && mongoose.Types.ObjectId.isValid(assignedStationId)
+        ? [{ _id: assignedStationId }]
+        : []),
+    ],
+  };
+};
+
 module.exports = {
   list: async (req, res, next) => {
-    const stations = await models.Station.find({})
+    const stationAdminId = String(req.body.stationAdminId || req.query.stationAdminId || "").trim();
+    let query = {};
+
+    if (stationAdminId) {
+      const stationAdmin = await loadStationAdmin(stationAdminId);
+      if (!stationAdmin) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Station admin not found");
+      }
+      query = buildStationAdminStationQuery(stationAdmin);
+    }
+
+    const stations = await models.Station.find(query)
       .sort({ createdAt: -1 })
+      .populate("stationAdminId", "name email mobile role stationId")
       .lean();
 
     req.rData = { stations };
@@ -19,7 +61,7 @@ module.exports = {
   },
 
   create: async (req, res, next) => {
-    const { name, address, parkingType, lat, lng, isActive } = req.body || {};
+    const { name, address, parkingType, lat, lng, isActive, stationAdminId } = req.body || {};
 
     const normalizedName = String(name || "").trim();
     if (!normalizedName) {
@@ -27,9 +69,36 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "name is required");
     }
 
+    const existingStation = await models.Station.findOne({
+      name: { $regex: `^${escapeRegExp(normalizedName)}$`, $options: "i" },
+    }).lean();
+    if (existingStation) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "Station name already exists");
+    }
+
+    let resolvedStationAdminId = null;
+    if (stationAdminId) {
+      if (!mongoose.Types.ObjectId.isValid(String(stationAdminId))) {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, "stationAdminId must be a valid id");
+      }
+
+      const stationAdmin = await UserService().fetchDocByQuery({
+        _id: stationAdminId,
+        role: { $in: STATION_ADMIN_ROLES },
+      });
+      if (!stationAdmin) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Station admin not found");
+      }
+      resolvedStationAdminId = stationAdmin._id;
+    }
+
     const station = await models.Station.create({
       name: normalizedName,
       address: String(address || "").trim(),
+      stationAdminId: resolvedStationAdminId || undefined,
       parkingType: ["COVERED", "OPEN"].includes(String(parkingType || "").trim().toUpperCase())
         ? String(parkingType || "").trim().toUpperCase()
         : "OPEN",
@@ -49,10 +118,47 @@ module.exports = {
       entityType: "Station",
       entityId: station._id,
       after: station,
+      meta: { stationAdminId: resolvedStationAdminId || null },
     });
 
     req.rData = { station };
     req.msg = "success";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  detail: async (req, res, next) => {
+    const stationId = String(req.params.stationId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(stationId)) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "stationId must be a valid id");
+    }
+
+    const stationAdminId = String(req.body.stationAdminId || req.query.stationAdminId || "").trim();
+    if (!stationAdminId) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "stationAdminId is required");
+    }
+
+    const stationAdmin = await loadStationAdmin(stationAdminId);
+    if (!stationAdmin) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Station admin not found");
+    }
+
+    const station = await models.Station.findOne({
+      _id: stationId,
+      ...buildStationAdminStationQuery(stationAdmin),
+    })
+      .populate("stationAdminId", "name email mobile role stationId")
+      .lean();
+
+    if (!station) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Station not found");
+    }
+
+    req.rData = { station };
+    req.msg = "station_detail";
     return ResponseMiddleware(req, res, next);
   },
 };

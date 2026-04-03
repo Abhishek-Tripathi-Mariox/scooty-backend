@@ -1,10 +1,15 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const UserService = require("../services/UserService");
 
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
+
 module.exports = {
   me: async (req, res, next) => {
     const stationAdminId = req.body.stationAdminId;
-    const stationAdmin = await UserService().fetchById(stationAdminId);
+    const stationAdmin = await UserService().fetchDocByQuery({
+      _id: stationAdminId,
+      role: { $in: STATION_ADMIN_ROLES },
+    });
     if (!stationAdmin) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Station admin not found");
@@ -21,7 +26,7 @@ module.exports = {
     const userService = UserService();
     const stationAdmin = await userService.fetchDocByQuery({
       _id: stationAdminId,
-      role: "STATION_ADMIN",
+      role: { $in: STATION_ADMIN_ROLES },
     });
     if (!stationAdmin) {
       req.rCode = 5;

@@ -11,13 +11,18 @@ const normalizePerks = (perks) => {
     .filter(Boolean);
 };
 
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
+
   const validateStation = async (stationId) => {
     if (!mongoose.Types.ObjectId.isValid(String(stationId || ""))) return null;
     return await models.Station.findOne({ _id: stationId, isActive: true }).lean();
   };
 
   const validateStationAdminStation = async (stationAdminId, stationId) => {
-    const stationAdmin = await models.User.findOne({ _id: stationAdminId, role: "STATION_ADMIN" }).lean();
+    const stationAdmin = await models.User.findOne({
+      _id: stationAdminId,
+      role: { $in: STATION_ADMIN_ROLES },
+    }).lean();
     if (!stationAdmin) return null;
 
     if (stationAdmin.stationId) {
