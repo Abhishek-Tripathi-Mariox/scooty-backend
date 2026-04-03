@@ -6,6 +6,7 @@ const normalizeStr = (v) => (typeof v === "string" ? v.trim() : "");
 const stationVehicleStatuses = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
 const rideStatuses = new Set(["CONFIRMED", "ACTIVE", "COMPLETED"]);
 const maintenanceOpenStatuses = new Set(["OPEN", "IN_PROGRESS"]);
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 
 const validateStationId = async (stationId, { required = true } = {}) => {
   const requested = String(stationId || "").trim();
@@ -35,7 +36,7 @@ const validateStationId = async (stationId, { required = true } = {}) => {
 const resolveVehicleOwner = async (ownerId) => {
   const owner = await models.User.findOne({
     _id: ownerId,
-    role: { $in: ["OWNER", "STATION_ADMIN"] },
+    role: { $in: ["OWNER", ...STATION_ADMIN_ROLES] },
     isActive: true,
   }).lean();
   if (!owner) {

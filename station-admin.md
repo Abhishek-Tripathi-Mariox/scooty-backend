@@ -19,6 +19,8 @@ Body:
 ```json
 { "email": "sa@station.com", "password": "Sa@123" }
 ```
+Notes:
+- `STATION_ADMIN` and `SUB_STATION_ADMIN` roles can log in here.
 
 ### `POST /station-admin/auth/send-otp`
 Body:
@@ -65,6 +67,16 @@ Body:
 ### `PATCH /station-admin/me`
 
 ### `POST /station-admin/change-password`
+
+### `GET /station-admin/stations`
+Notes:
+- Returns stations assigned to the authenticated station admin.
+- If the admin already has a linked `stationId`, that station is included in the listing too.
+
+### `GET /station-admin/stations/:stationId`
+Notes:
+- Returns a single station only if it is assigned to the authenticated station admin or linked to their profile.
+- `stationAdminId` is taken from the auth token context.
 
 ---
 
@@ -156,6 +168,8 @@ Optional query:
 - `q` = search by vehicle id, model, registration, or chassis number
 - `page` = page number, default `1`
 - `limit` = items per page, default `20`, max `100`
+Notes:
+- Station admins only see vehicles from their assigned station, or from the `stationId` passed in the request when no station is assigned.
 
 Response:
 ```json

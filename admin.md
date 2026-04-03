@@ -178,6 +178,11 @@ Optional query:
 ## Stations
 
 ### `GET /admin/stations`
+Optional query/body:
+- `stationAdminId`
+
+Notes:
+- If `stationAdminId` is sent, the station list is filtered to stations assigned to that station admin plus the station linked to the admin profile.
 
 ### `POST /admin/stations`
 Body:
@@ -188,14 +193,18 @@ Body:
   "parkingType": "OPEN",
   "lat": 22.7196,
   "lng": 75.8577,
-  "isActive": true
+  "isActive": true,
+  "stationAdminId": "<stationAdminId>"
 }
 ```
 Validation:
 - `name` is required.
+- `name` must be unique across stations, ignoring case and surrounding spaces.
 - `parkingType` must be `COVERED` or `OPEN`.
 - `lat` and `lng` are optional and saved as `[lng, lat]`.
 - `isActive` defaults to `true`.
+- `stationAdminId` is optional.
+- When provided, it must point to an existing `STATION_ADMIN` or `SUB_STATION_ADMIN`.
 
 ---
 
@@ -209,11 +218,22 @@ Query:
 ### `POST /admin/station-admins`
 Body:
 ```json
-{ "name": "Station Admin", "email": "sa@station.com", "password": "Sa@123", "mobile": "9000000000", "stationId": "<stationId>" }
+{
+  "name": "Station Admin",
+  "email": "sa@station.com",
+  "password": "Sa@123",
+  "mobile": "9000000000",
+  "role": "STATION_ADMIN",
+  "stationId": "<stationId>"
+}
 ```
 Validation:
-- `name`, `email`, `password`, and `stationId` are required.
-- `stationId` must point to an existing station.
+- `name`, `email`, and `password` are required.
+- `role` is required.
+- `role` must be `STATION_ADMIN` or `SUB_STATION_ADMIN`.
+- `stationId` is optional for `STATION_ADMIN`.
+- `stationId` is required for `SUB_STATION_ADMIN`.
+- When provided, `stationId` must point to an existing station.
 
 Response note:
 - Auth/profile APIs return the admin object without `passwordHash`.

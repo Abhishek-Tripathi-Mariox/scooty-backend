@@ -1,7 +1,7 @@
 const { models, mongoose } = require("../models");
 const UserService = require("./UserService");
 const AuditLogService = require("./AuditLogService");
-const { hashPassword } = require("../util/password");
+const { hashPassword, normalizePassword } = require("../util/password");
 const FinanceService = require("./FinanceService");
 
 const DEFAULT_PRICING = {
@@ -732,7 +732,7 @@ module.exports = () => {
   const createAdmin = async ({ adminId, payload }) => {
     const name = String(payload.name || "").trim();
     const email = String(payload.email || "").trim().toLowerCase();
-    const password = String(payload.password || "");
+    const password = normalizePassword(payload.password);
     if (!name || !email || !password) {
       const err = new Error("name, email and password are required");
       err.code = "REQUIRED_FIELDS_MISSING";
@@ -830,7 +830,7 @@ module.exports = () => {
     if (payload.isActive !== undefined) admin.isActive = normalizeBoolean(payload.isActive, admin.isActive);
     if (Array.isArray(payload.permissions)) admin.adminPermissions = sanitizePermissions(payload.permissions);
     if (typeof payload.password === "string" && payload.password.trim()) {
-      admin.passwordHash = await hashPassword(payload.password.trim());
+      admin.passwordHash = await hashPassword(normalizePassword(payload.password));
     }
 
     await admin.save();

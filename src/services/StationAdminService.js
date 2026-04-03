@@ -9,6 +9,7 @@ const MAINTENANCE_STATUSES = ["OPEN", "IN_PROGRESS", "COMPLETED", "REJECTED"];
 const VEHICLE_STATUSES = ["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"];
 const NOTIFICATION_TYPES = ["RIDE", "EARNING", "ALERT", "SYSTEM"];
 const SUPPORT_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -85,7 +86,10 @@ const buildDateSeries = (from, to) => {
 };
 
 const resolveStationScope = async ({ stationAdminId, stationId: requestedStationId = "" }) => {
-  const stationAdmin = await models.User.findOne({ _id: stationAdminId, role: "STATION_ADMIN" }).lean();
+  const stationAdmin = await models.User.findOne({
+    _id: stationAdminId,
+    role: { $in: STATION_ADMIN_ROLES },
+  }).lean();
   if (!stationAdmin) return { stationAdmin: null, stationId: null };
 
   const assignedStationId = String(stationAdmin.stationId || "").trim();
