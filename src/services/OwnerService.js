@@ -26,9 +26,10 @@ module.exports = () => {
     if (!owner) return null;
     const before = owner.toObject();
 
-    const { name, email, city, companyName, adress, state, pincode } = payload || {};
+    const { name, email, city, companyName, address, adress, state, pincode } = payload || {};
 
     if (typeof city === "string") owner.city = city.trim();
+    if (typeof address === "string") owner.adress = address.trim();
     if (typeof adress === "string") owner.adress = adress.trim();
     if (typeof state === "string") owner.state = state.trim();
     if (typeof pincode === "string") owner.pincode = pincode.trim();

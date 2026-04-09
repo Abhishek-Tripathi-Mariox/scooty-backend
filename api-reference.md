@@ -25,6 +25,15 @@ Notes:
 
 ## User Auth
 
+`POST /user/auth/signup`
+```json
+{ "name": "User Name", "address": "AB Road, Indore", "mobile": "9999999999", "city": "Indore" }
+```
+Response:
+```json
+{ "token": "<userToken>", "user": { "_id": "<id>", "name": "User Name" } }
+```
+
 `POST /user/auth/send-otp`
 ```json
 { "mobile": "9999999999" }
@@ -32,12 +41,14 @@ Notes:
 
 `POST /user/auth/verify-otp`
 ```json
-{ "mobile": "9999999999", "otp": "123456" }
+{ "mobile": "9999999999", "otp": "1234" }
 ```
 
 Notes:
 - These routes are available under the user namespace only.
 - The same auth flow is used by the user app login/register flow.
+- `signup` creates the account and returns a token directly.
+- User and owner OTPs are 4 digits.
 
 ## User Role
 
@@ -168,6 +179,15 @@ Notes:
 
 ### Auth
 
+`POST /owner/auth/signup`
+```json
+{ "fullName": "Owner Name", "address": "AB Road, Indore", "mobile": "7777777777", "city": "Indore" }
+```
+Response:
+```json
+{ "token": "<ownerToken>", "owner": { "_id": "<id>", "name": "Owner Name" } }
+```
+
 `POST /owner/auth/send-otp`
 ```json
 { "mobile": "7777777777" }
@@ -175,8 +195,10 @@ Notes:
 
 `POST /owner/auth/verify-otp`
 ```json
-{ "mobile": "7777777777", "otp": "123456", "name": "Owner Name", "companyName": "Fleet Owner" }
+{ "mobile": "7777777777", "otp": "1234", "name": "Owner Name", "companyName": "Fleet Owner" }
 ```
+Notes:
+- `signup` creates the account and returns a token directly.
 
 ### Dashboard / Earnings
 
@@ -214,13 +236,12 @@ Notes:
 `GET /owner/kyc`
 
 `PATCH /owner/kyc`
-```json
-{}
-```
-Multipart files:
+Multipart form-data:
 - `profilePhoto`
 - `adharFile`
 - `panFile`
+- The owner app now sends actual files for these fields.
+- `profilePhoto` should be an image, while `adharFile` and `panFile` accept image or PDF uploads.
 
 ### Payouts
 

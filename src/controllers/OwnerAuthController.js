@@ -5,6 +5,42 @@ const UserService = require("../services/UserService");
 const AuditLogService = require("../services/AuditLogService");
 
 const normalizeMobile = (mobile) => String(mobile || "").replace(/\D/g, "");
+const normalizeText = (value) => String(value || "").trim();
+const serializeOwner = (owner) => {
+  if (!owner) return owner;
+  const data = owner.toObject ? owner.toObject() : { ...owner };
+  data.address = data.address || data.adress || "";
+  return data;
+};
+
+const ensureOwnerProfile = async ({ mobile, name, address, city, companyName }) => {
+  const service = UserService();
+  const existing = await service.fetchDocByQuery({ mobile });
+
+  if (existing && existing.role !== "OWNER") {
+    const err = new Error("Mobile number already registered with another role");
+    err.code = "ROLE_CONFLICT";
+    throw err;
+  }
+
+  if (!existing) {
+    return await service.create({
+      role: "OWNER",
+      mobile,
+      name,
+      adress: address,
+      city,
+      ...(companyName ? { companyName } : {}),
+    });
+  }
+
+  if (!existing.name) existing.name = name;
+  if (!existing.adress) existing.adress = address;
+  if (!existing.city) existing.city = city;
+  if (companyName && !existing.companyName) existing.companyName = companyName;
+  await existing.save();
+  return existing;
+};
 
 module.exports = {
   sendOtp: async (req, res, next) => {
@@ -14,9 +50,7 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "Invalid mobile number");
     }
 
-    // const otp = generateOtp();
-    const otp = process.env.MASTER_OTP_LOGIN || "123456"; // For development/testing, use a fixed OTP or environment variable
-
+    const otp = generateOtp();
     await storeOtp(`owner:${mobile}`, otp);
     await AuditLogService().create({
       actorRole: "OWNER",
@@ -24,17 +58,57 @@ module.exports = {
       entityType: "Auth",
       meta: { mobile },
     });
-
-    req.rData = { mobile, otp: otp };
+    req.rData = { mobile, otp };
     req.msg = "otp_sent";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  signup: async (req, res, next) => {
+    const mobile = normalizeMobile(req.body.mobile);
+    const name = normalizeText(req.body.fullName || req.body.name);
+    const address = normalizeText(req.body.address || req.body.adress);
+    const city = normalizeText(req.body.city);
+    const companyName = normalizeText(req.body.companyName);
+
+    if (!name || !address || !mobile || !city) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "name, address, mobile and city are required");
+    }
+
+    if (mobile.length < 10) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "Invalid mobile number");
+    }
+
+    let owner;
+    try {
+      owner = await ensureOwnerProfile({ mobile, name, address, city, companyName });
+    } catch (error) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, error.message || "Unable to create owner");
+    }
+
+    await AuditLogService().create({
+      actorRole: "OWNER",
+      action: "OWNER_SIGNUP_SUCCESS",
+      entityType: "Auth",
+      entityId: owner._id,
+      meta: { mobile },
+    });
+
+    const token = generateToken({ user_id: owner._id.toString(), role: "OWNER" });
+    req.rData = { token, owner: serializeOwner(owner) };
+    req.msg = "signup_success";
     return ResponseMiddleware(req, res, next);
   },
 
   verifyOtp: async (req, res, next) => {
     const mobile = normalizeMobile(req.body.mobile);
     const otp = String(req.body.otp || "").trim();
-    const name = (req.body.name || "").trim();
-    const companyName = (req.body.companyName || "").trim();
+    const name = normalizeText(req.body.fullName || req.body.name);
+    const address = normalizeText(req.body.address || req.body.adress);
+    const city = normalizeText(req.body.city);
+    const companyName = normalizeText(req.body.companyName);
 
     if (!mobile || !otp) {
       req.rCode = 0;
@@ -55,10 +129,14 @@ module.exports = {
         role: "OWNER",
         mobile,
         name: name || undefined,
+        adress: address || undefined,
+        city: city || undefined,
         companyName: companyName || undefined,
       });
     } else {
       if (name && !owner.name) owner.name = name;
+      if (address && !owner.adress) owner.adress = address;
+      if (city && !owner.city) owner.city = city;
       if (companyName && !owner.companyName) owner.companyName = companyName;
       await owner.save();
     }
@@ -72,7 +150,7 @@ module.exports = {
     });
 
     const token = generateToken({ user_id: owner._id.toString(), role: "OWNER" });
-    req.rData = { token, owner };
+    req.rData = { token, owner: serializeOwner(owner) };
     req.msg = "otp_verified";
     return ResponseMiddleware(req, res, next);
   },

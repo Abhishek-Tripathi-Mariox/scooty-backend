@@ -16,6 +16,7 @@ const OwnerSupportController = require("../../controllers/OwnerSupportController
 const OwnerSettingsController = require("../../controllers/OwnerSettingsController");
 
 // Public owner auth
+router.post("/auth/signup", ErrorHandle(OwnerAuthController.signup));
 router.post("/auth/send-otp", ErrorHandle(OwnerAuthController.sendOtp));
 router.post("/auth/verify-otp", ErrorHandle(OwnerAuthController.verifyOtp));
 
