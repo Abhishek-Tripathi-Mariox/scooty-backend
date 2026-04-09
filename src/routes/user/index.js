@@ -5,6 +5,7 @@ const AuthController = require("../../controllers/AuthController");
 const UserController = require("../../controllers/UserController");
 
 // Public user auth routes
+router.post("/auth/signup", ErrorHandle(AuthController.signup));
 router.post("/auth/send-otp", ErrorHandle(AuthController.sendOtp));
 router.post("/auth/verify-otp", ErrorHandle(AuthController.verifyOtp));
 

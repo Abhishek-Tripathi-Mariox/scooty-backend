@@ -19,7 +19,7 @@ module.exports = {
 
   update: async (req, res, next) => {
     const userId = req.body.userId;
-    const { name, language, email, profilePhotoUrl } = req.body || {};
+    const { name, address, adress, city, language, email, profilePhotoUrl } = req.body || {};
     const userService = UserService();
     const user = await userService.fetchDocByQuery({ _id: userId });
     if (!user) {
@@ -28,6 +28,9 @@ module.exports = {
     }
 
     if (typeof name === "string") user.name = name.trim() || user.name;
+    if (typeof address === "string") user.adress = address.trim() || user.adress;
+    if (typeof adress === "string") user.adress = adress.trim() || user.adress;
+    if (typeof city === "string") user.city = city.trim() || user.city;
     if (typeof language === "string" && language.trim()) {
       user.language = language.trim();
     }
