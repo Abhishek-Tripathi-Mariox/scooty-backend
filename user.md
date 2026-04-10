@@ -54,6 +54,7 @@ Optional query:
 - `lat`
 - `lng`
 - `search`
+Note: this discovery endpoint is public and can be used without a user token.
 
 ### `GET /user/stations/:stationId`
 

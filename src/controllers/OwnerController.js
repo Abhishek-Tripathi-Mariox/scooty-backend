@@ -2,20 +2,33 @@ const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const OwnerService = require("../services/OwnerService");
 const BankService = require("../services/BankService");
 const FinanceService = require("../services/FinanceService");
+const UserAppService = require("../services/UserAppService");
+const OwnerDashboardService = require("../services/OwnerDashboardService");
+const OwnerKycService = require("../services/OwnerKycService");
 
 
 module.exports = {
   me: async (req, res, next) => {
     const ownerId = req.body.ownerId;
-    const owner = await OwnerService().fetchOwnerLeanById(ownerId);
+    const [owner, bank, dashboard, kyc] = await Promise.all([
+      OwnerService().fetchOwnerLeanById(ownerId),
+      BankService().getOrCreate(ownerId),
+      OwnerDashboardService().getDashboard(ownerId),
+      OwnerKycService().fetchOwnerKyc(ownerId),
+    ]);
+
     if (!owner) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Owner not found");
     }
 
-    const bank = await BankService().getOrCreate(ownerId);
-    req.rData = { owner, bank };
-    req.msg = "profile_fetched";
+    req.rData = {
+      owner,
+      bank,
+      dashboard,
+      kyc,
+    };
+    req.msg = "profile_summary_fetched";
     return ResponseMiddleware(req, res, next);
   },
 
@@ -76,6 +89,19 @@ module.exports = {
     });
     req.rData = data;
     req.msg = "transactions_list";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  profile: async (req, res, next) => module.exports.me(req, res, next),
+
+  stations: async (req, res, next) => {
+    const stations = await UserAppService().listStations({
+      lat: req.query.lat,
+      lng: req.query.lng,
+      search: req.query.search,
+    });
+    req.rData = { stations };
+    req.msg = "stations_list";
     return ResponseMiddleware(req, res, next);
   },
 };

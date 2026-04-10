@@ -9,12 +9,14 @@ router.post("/auth/signup", ErrorHandle(AuthController.signup));
 router.post("/auth/send-otp", ErrorHandle(AuthController.sendOtp));
 router.post("/auth/verify-otp", ErrorHandle(AuthController.verifyOtp));
 
+// Public discovery routes used by both rider and owner apps
+router.get("/stations", ErrorHandle(UserController.stations));
+
 // Protected user routes
 router.use(AuthMiddleware().verifyUserToken);
 
 // Discovery
 router.get("/plans", ErrorHandle(UserController.plans));
-router.get("/stations", ErrorHandle(UserController.stations));
 router.get("/stations/:stationId", ErrorHandle(UserController.stationDetail));
 router.get("/time-slots", ErrorHandle(UserController.timeSlots));
 

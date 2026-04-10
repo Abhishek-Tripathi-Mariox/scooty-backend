@@ -66,6 +66,7 @@ Notes:
 `GET /user/plans?stationId=<stationId>`
 
 `GET /user/stations?lat=22.7196&lng=75.8577&search=central`
+Public discovery endpoint.
 
 `GET /user/stations/:stationId`
 
@@ -220,6 +221,7 @@ Notes:
 ### Profile / Account
 
 `GET /owner/me`
+Returns `{ owner, bank, dashboard, kyc }`
 
 `PATCH /owner/me`
 ```json
@@ -255,6 +257,8 @@ Multipart form-data:
 ### Vehicles
 
 `GET /owner/vehicles?status=ACTIVE`
+
+`GET /owner/stations?search=central`
 
 `POST /owner/vehicles`
 ```json

@@ -62,7 +62,7 @@ Optional query:
 ## Profile (Protected)
 
 ### `GET /owner/me`
-Returns `{ owner, bank }`
+Returns `{ owner, bank, dashboard, kyc }` for the owner app profile screen.
 
 ### `PATCH /owner/me`
 Body (any):
@@ -145,6 +145,13 @@ Multipart supported:
 
 ### `DELETE /owner/vehicles/:vehicleId`
 Requests vehicle removal (sets status to `REMOVAL_REQUESTED`).
+
+### `GET /owner/stations`
+Optional query:
+- `lat`
+- `lng`
+- `search`
+Returns active stations for owner-side station assignment.
 
 ---
 
