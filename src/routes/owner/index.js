@@ -35,6 +35,7 @@ router.patch("/notifications/:notificationId/read", ErrorHandle(OwnerNotificatio
 // Profile and account details
 router.get("/me", ErrorHandle(OwnerController.me));
 router.patch("/me", ErrorHandle(OwnerController.update));
+router.get("/stations", ErrorHandle(OwnerController.stations));
 
 // Bank details
 router.get("/bank", ErrorHandle(BankController.get));
