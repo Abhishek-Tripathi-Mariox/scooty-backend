@@ -23,7 +23,7 @@ Body:
 ### `POST /owner/auth/verify-otp`
 Body:
 ```json
-{ "mobile": "7777777777", "otp": "123456", "name": "Owner Name", "companyName": "Fleet Owner" }
+{ "mobile": "7777777777", "otp": "1234", "name": "Owner Name", "companyName": "Fleet Owner" }
 ```
 Success: returns `token` + `owner`.
 

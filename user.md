@@ -23,7 +23,7 @@ Body:
 ### `POST /user/auth/verify-otp`
 Body:
 ```json
-{ "mobile": "9999999999", "otp": "123456", "name": "User Name" }
+{ "mobile": "9999999999", "otp": "1234", "name": "User Name" }
 ```
 Success: returns `token` and `user`.
 

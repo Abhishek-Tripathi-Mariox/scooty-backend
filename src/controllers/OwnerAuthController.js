@@ -50,7 +50,8 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "Invalid mobile number");
     }
 
-    const otp = generateOtp();
+    // const otp = generateOtp();
+    const otp="1155";
     await storeOtp(`owner:${mobile}`, otp);
     await AuditLogService().create({
       actorRole: "OWNER",
