@@ -47,6 +47,19 @@ Body:
 { "isActive": false, "note": "Fraud review" }
 ```
 
+### `PATCH /admin/users/:userId/kyc-status`
+Body:
+```json
+{
+  "kycStatus": "APPROVED",
+  "rejectionReason": "Document unclear"
+}
+```
+Notes:
+- `kycStatus` must be one of `NOT_SUBMITTED`, `PENDING`, `APPROVED`, `REJECTED`.
+- `rejectionReason` is used when `kycStatus` is `REJECTED`.
+- This endpoint updates the owner's KYC fields and writes an audit log entry.
+
 ### `GET /admin/pricing`
 
 ### `PATCH /admin/pricing`

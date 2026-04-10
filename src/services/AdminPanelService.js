@@ -259,6 +259,50 @@ module.exports = () => {
     return user;
   };
 
+  const updateUserKycStatus = async ({ adminId, userId, kycStatus, rejectionReason }) => {
+    if (!mongoose.Types.ObjectId.isValid(String(userId || ""))) return null;
+    const user = await models.User.findOne({ _id: userId, role: "OWNER" });
+    if (!user) return null;
+
+    const normalizedStatus = String(kycStatus || "").trim().toUpperCase();
+    if (!["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED"].includes(normalizedStatus)) {
+      const err = new Error("Invalid kycStatus");
+      err.code = "INVALID_KYC_STATUS";
+      throw err;
+    }
+
+    const before = sanitizeUser(user);
+    user.kycStatus = normalizedStatus;
+
+    if (normalizedStatus === "APPROVED") {
+      user.kycRejectionReason = "";
+      user.kycVerifiedAt = new Date();
+    } else if (normalizedStatus === "REJECTED") {
+      user.kycRejectionReason = String(rejectionReason || "").trim();
+      user.kycVerifiedAt = undefined;
+    } else {
+      user.kycRejectionReason = "";
+      user.kycVerifiedAt = undefined;
+    }
+
+    await user.save();
+
+    await recordAuditLog({
+      actorId: adminId,
+      action: "OWNER_KYC_STATUS_UPDATED",
+      entityType: "User",
+      entityId: user._id,
+      before,
+      after: sanitizeUser(user),
+      meta: {
+        kycStatus: normalizedStatus,
+        rejectionReason: String(rejectionReason || "").trim(),
+      },
+    });
+
+    return user;
+  };
+
   const getPricing = async () => {
     const pricing = await getSetting("pricing", DEFAULT_PRICING);
     if (Array.isArray(pricing.penaltySlabs)) {
@@ -888,6 +932,7 @@ module.exports = () => {
     getDashboard,
     listUsers,
     updateUserStatus,
+    updateUserKycStatus,
     getPricing,
     updatePricing,
     getCommission,
