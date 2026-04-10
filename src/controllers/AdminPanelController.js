@@ -8,6 +8,12 @@ const parseBoolean = (value) => {
   return null;
 };
 
+const normalizeKycStatus = (value) => {
+  const status = String(value || "").trim().toUpperCase();
+  if (["NOT_SUBMITTED", "PENDING", "APPROVED", "REJECTED"].includes(status)) return status;
+  return null;
+};
+
 const sanitizeAuthUser = (user) => {
   if (!user) return user;
   const data = user.toObject ? user.toObject() : { ...user };
@@ -59,6 +65,35 @@ module.exports = {
 
     req.rData = { user: sanitizeAuthUser(user) };
     req.msg = "user_status_updated";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  updateUserKycStatus: async (req, res, next) => {
+    const kycStatus = normalizeKycStatus(req.body.kycStatus ?? req.body.status);
+    if (!kycStatus) {
+      req.rCode = 0;
+      return ResponseMiddleware(
+        req,
+        res,
+        next,
+        "kycStatus must be one of NOT_SUBMITTED, PENDING, APPROVED, REJECTED",
+      );
+    }
+
+    const user = await AdminPanelService().updateUserKycStatus({
+      adminId: req.body.adminId,
+      userId: req.params.userId,
+      kycStatus,
+      rejectionReason: req.body.rejectionReason,
+    });
+
+    if (!user) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Owner not found");
+    }
+
+    req.rData = { user: sanitizeAuthUser(user) };
+    req.msg = "owner_kyc_status_updated";
     return ResponseMiddleware(req, res, next);
   },
 

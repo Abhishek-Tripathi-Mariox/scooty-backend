@@ -1,0 +1,3009 @@
+{
+  "info": {
+    "name": "Scooty Rental APIs",
+    "description": "Folder-wise Postman collection for user, owner, admin, and station admin roles.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "User Signup",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/auth/signup"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"User Name\",\n  \"address\": \"AB Road, Indore\",\n  \"mobile\": \"9999999999\",\n  \"city\": \"Indore\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/auth/send-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"9999999999\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Verify OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/auth/verify-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"9999999999\",\n  \"otp\": \"1234\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Discovery",
+          "item": [
+            {
+              "name": "List Plans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/plans?stationId={{stationId}}"
+                }
+              }
+            },
+            {
+              "name": "List Stations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/stations?lat=22.7196&lng=75.8577&search=central"
+                }
+              }
+            },
+            {
+              "name": "Station Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/stations/{{stationId}}"
+                }
+              }
+            },
+            {
+              "name": "Time Slots",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/time-slots?date=2026-03-25&planCode=DAY_PASS&stationId={{stationId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/me"
+                }
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/me"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"New Name\",\n  \"email\": \"me@example.com\",\n  \"profilePhotoUrl\": \"https://example.com/photo.jpg\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bookings",
+          "item": [
+            {
+              "name": "Booking Quote",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/quote"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pickupStationId\": \"{{stationId}}\",\n  \"dropStationId\": \"{{stationId}}\",\n  \"planCode\": \"DAY_PASS\",\n  \"date\": \"2026-03-25\",\n  \"startTime\": \"10:00\",\n  \"referralCode\": \"MVABCD12\",\n  \"walletToUse\": 100\n}"
+                }
+              }
+            },
+            {
+              "name": "Create Booking",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pickupStationId\": \"{{stationId}}\",\n  \"dropStationId\": \"{{stationId}}\",\n  \"planCode\": \"DAY_PASS\",\n  \"date\": \"2026-03-25\",\n  \"startTime\": \"10:00\",\n  \"paymentMethod\": \"UPI\",\n  \"paymentReferenceId\": \"pay_demo_001\",\n  \"walletToUse\": 100\n}"
+                }
+              }
+            },
+            {
+              "name": "List Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings?status=CONFIRMED"
+                }
+              }
+            },
+            {
+              "name": "Booking Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}"
+                }
+              }
+            },
+            {
+              "name": "Pay Booking",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/pay"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"paymentMethod\": \"UPI\",\n  \"paymentReferenceId\": \"pay_demo_002\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Start Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/start"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"unlockCode\": \"MV-ABC123\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Complete Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/complete"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dropStationId\": \"{{stationId}}\",\n  \"parkingPhotoUrl\": \"https://example.com/parking.jpg\",\n  \"rating\": 5,\n  \"review\": \"Smooth ride\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finance & Referral",
+          "item": [
+            {
+              "name": "Ride History",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/rides/history"
+                }
+              }
+            },
+            {
+              "name": "Wallet Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/wallet"
+                }
+              }
+            },
+            {
+              "name": "Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/transactions?type=CREDIT&from=2026-01-01&to=2026-12-31&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Booking Invoice",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/invoice"
+                }
+              }
+            },
+            {
+              "name": "Booking Refund",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/refund"
+                }
+              }
+            },
+            {
+              "name": "Invoice PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/invoice/pdf"
+                }
+              }
+            },
+            {
+              "name": "Receipt PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/receipt/pdf"
+                }
+              }
+            },
+            {
+              "name": "Referral Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/referral"
+                }
+              }
+            },
+            {
+              "name": "Apply Referral",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/referral/apply"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"referralCode\": \"MVABCD12\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/notifications?type=SYSTEM"
+                }
+              }
+            },
+            {
+              "name": "Mark All Read",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/notifications/read-all?type=SYSTEM"
+                }
+              }
+            },
+            {
+              "name": "Mark Read",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/notifications/{{notificationId}}/read"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support",
+          "item": [
+            {
+              "name": "Support FAQs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/support/faqs?stationId={{stationId}}"
+                }
+              }
+            },
+            {
+              "name": "Support Tickets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/support/tickets"
+                }
+              }
+            },
+            {
+              "name": "Create Ticket",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/support/tickets"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subject\": \"Ride issue\",\n  \"message\": \"Unable to unlock the scooter\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Ticket Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/user/support/tickets/{{ticketId}}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Owner",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Owner Signup",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/auth/signup"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"Owner Name\",\n  \"address\": \"AB Road, Indore\",\n  \"mobile\": \"7777777777\",\n  \"city\": \"Indore\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/auth/send-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"7777777777\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Verify OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/auth/verify-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"7777777777\",\n  \"otp\": \"1234\",\n  \"name\": \"Owner Name\",\n  \"companyName\": \"Fleet Owner\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard & Earnings",
+          "item": [
+            {
+              "name": "Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/dashboard"
+                }
+              }
+            },
+            {
+              "name": "Earnings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/earnings?from=2026-01-01&to=2026-12-31"
+                }
+              }
+            },
+            {
+              "name": "Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/transactions?type=CREDIT&from=2026-01-01&to=2026-12-31&page=1&limit=20"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile & KYC",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/me"
+                }
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/me"
+                },
+                "description": "If you need to upload profile or KYC files, send multipart/form-data from Postman.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Owner Name\",\n  \"email\": \"owner@example.com\",\n  \"city\": \"Indore\",\n  \"companyName\": \"Fleet Owner\",\n  \"adress\": \"AB Road\",\n  \"state\": \"MP\",\n  \"pincode\": \"452001\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Bank Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/bank"
+                }
+              }
+            },
+            {
+              "name": "KYC Status",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/kyc"
+                }
+              }
+            },
+            {
+              "name": "Submit KYC",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/kyc"
+                },
+                "description": "Send multipart/form-data with file fields: profilePhoto, adharFile, panFile."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payouts",
+          "item": [
+            {
+              "name": "List Payouts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/payouts"
+                }
+              }
+            },
+            {
+              "name": "Request Payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/payouts/request"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 1000,\n  \"note\": \"Monthly payout request\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vehicles",
+          "item": [
+            {
+              "name": "List Vehicles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/vehicles?status=ACTIVE"
+                }
+              }
+            },
+            {
+              "name": "Create Vehicle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/vehicles"
+                },
+                "description": "If vehicle media/files are required, send multipart/form-data using the fields expected by the vehicle controller."
+              }
+            },
+            {
+              "name": "Vehicle Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/vehicles/{{vehicleId}}"
+                }
+              }
+            },
+            {
+              "name": "Update Vehicle",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/vehicles/{{vehicleId}}"
+                },
+                "description": "If vehicle media/files are required, send multipart/form-data using the fields expected by the vehicle controller."
+              }
+            },
+            {
+              "name": "Request Removal",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/vehicles/{{vehicleId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Maintenance",
+          "item": [
+            {
+              "name": "List Maintenance",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/maintenance?status=OPEN"
+                }
+              }
+            },
+            {
+              "name": "Create Maintenance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/maintenance"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"title\": \"Battery issue\",\n  \"description\": \"Battery draining fast\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Maintenance Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/maintenance/{{requestId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support",
+          "item": [
+            {
+              "name": "Support FAQs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/support/faqs"
+                }
+              }
+            },
+            {
+              "name": "Support Tickets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/support/tickets"
+                }
+              }
+            },
+            {
+              "name": "Create Ticket",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/support/tickets"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subject\": \"Payout delay\",\n  \"message\": \"My payout is pending for long\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Ticket Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/support/tickets/{{ticketId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settings",
+          "item": [
+            {
+              "name": "Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/settings"
+                }
+              }
+            },
+            {
+              "name": "Update Settings",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{ownerToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/owner/settings"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notifications\": {\n    \"rideUpdates\": true,\n    \"earnings\": true,\n    \"payout\": true,\n    \"promotions\": true,\n    \"maintenance\": true\n  }\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Admin Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/auth/login"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@station.com\",\n  \"password\": \"Admin@123\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/auth/forgot-password/send-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@station.com\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Resend OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/auth/forgot-password/resend-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"transactionId\": \"{{transactionId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Reset",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/auth/forgot-password/reset"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"transactionId\": \"{{transactionId}}\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPass@123\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile & Account",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/me"
+                }
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/me"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Admin Name\",\n  \"email\": \"admin@example.com\",\n  \"mobile\": \"9000000000\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/change-password"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"oldPassword\": \"Admin@123\",\n  \"newPassword\": \"Admin@1234\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users & KYC",
+          "item": [
+            {
+              "name": "List Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?role=OWNER&status=ACTIVE&q=&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Update User Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"isActive\": false,\n  \"note\": \"Fraud review\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Owner KYC Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/kyc-status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"kycStatus\": \"APPROVED\",\n  \"rejectionReason\": \"Document unclear\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stations & Staff",
+          "item": [
+            {
+              "name": "List Station Admins",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/station-admins"
+                }
+              }
+            },
+            {
+              "name": "Create Station Admin",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/station-admins"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Station Admin\",\n  \"email\": \"sa@example.com\",\n  \"password\": \"Sa@123\",\n  \"mobile\": \"8888888888\",\n  \"isActive\": true,\n  \"role\": \"STATION_ADMIN\",\n  \"stationId\": \"{{stationId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List Stations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/stations"
+                }
+              }
+            },
+            {
+              "name": "Create Station",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/stations"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Indore Station 1\",\n  \"address\": \"AB Road, Indore\",\n  \"parkingType\": \"OPEN\",\n  \"lat\": 22.7196,\n  \"lng\": 75.8577,\n  \"isActive\": true,\n  \"stationAdminId\": \"{{stationAdminId}}\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Content Moderation",
+          "item": [
+            {
+              "name": "List Ride Plans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ride-plans"
+                }
+              }
+            },
+            {
+              "name": "Review Ride Plan",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ride-plans/{{planId}}/review"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"APPROVED\",\n  \"note\": \"Looks good\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List FAQs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/faqs"
+                }
+              }
+            },
+            {
+              "name": "Review FAQ",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/faqs/{{faqId}}/review"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"APPROVED\",\n  \"note\": \"Accepted\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pricing & Commission",
+          "item": [
+            {
+              "name": "Get Pricing",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/pricing"
+                }
+              }
+            },
+            {
+              "name": "Update Pricing",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/pricing"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currency\": \"INR\",\n  \"baseFarePerHour\": 100,\n  \"baseFarePerDay\": 450,\n  \"securityDepositDefault\": 500,\n  \"convenienceFeePercent\": 3,\n  \"minimumConvenienceFee\": 9,\n  \"taxPercent\": 18,\n  \"penaltySlabs\": 3\n}"
+                }
+              }
+            },
+            {
+              "name": "Get Commission",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/commission"
+                }
+              }
+            },
+            {
+              "name": "Update Commission",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/commission"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"platformCommissionPercent\": 20,\n  \"ownerSharePercent\": 80,\n  \"franchiseSharePercent\": 0\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settlements",
+          "item": [
+            {
+              "name": "List Settlements",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settlements?status=PENDING&userId={{ownerId}}&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Create Settlement",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settlements"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{ownerId}}\",\n  \"amount\": 1000,\n  \"note\": \"Monthly settlement\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Settlement Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settlements/{{settlementId}}/status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"PROCESSING\",\n  \"note\": \"Queued for payout\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports & Finance",
+          "item": [
+            {
+              "name": "Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reports?from=2026-01-01&to=2026-12-31&stationId={{stationId}}"
+                }
+              }
+            },
+            {
+              "name": "Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/transactions?type=CREDIT&from=2026-01-01&to=2026-12-31&stationId={{stationId}}&userId={{ownerId}}&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Booking Invoice",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/invoice"
+                }
+              }
+            },
+            {
+              "name": "Booking Invoice PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/invoice/pdf"
+                }
+              }
+            },
+            {
+              "name": "Booking Refund",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings/{{bookingId}}/refund"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"PROCESSING\",\n  \"method\": \"WALLET\",\n  \"note\": \"Refund under review\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Ledger",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/ledger?sourceType=BOOKING&sourceId={{bookingId}}&from=2026-01-01&to=2026-12-31&page=1&limit=20"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access Control",
+          "item": [
+            {
+              "name": "List Admins",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/access-control/admins?q=&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Create Admin",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/access-control/admins"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Ops Admin\",\n  \"email\": \"ops@example.com\",\n  \"password\": \"Ops@123\",\n  \"mobile\": \"9000000000\",\n  \"isActive\": true,\n  \"permissions\": [\n    \"dashboard\",\n    \"reports\"\n  ]\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Admin",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/access-control/admins/{{adminId}}"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Ops Admin\",\n  \"mobile\": \"9000000001\",\n  \"isActive\": true,\n  \"permissions\": [\n    \"dashboard\",\n    \"reports\",\n    \"settlements\"\n  ]\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit Logs",
+          "item": [
+            {
+              "name": "List Audit Logs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/audit-logs?action=&entityType=&adminId={{adminId}}&from=2026-01-01&to=2026-12-31&page=1&limit=20"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Station Admin / Franchise",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/login"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"sa@station.com\",\n  \"password\": \"Sa@123\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/send-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"sa@station.com\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Resend OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/resend-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"transactionId\": \"{{transactionId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Verify OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/verify-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"sa@station.com\",\n  \"otp\": \"123456\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Send OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/forgot-password/send-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"sa@station.com\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Resend OTP",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/forgot-password/resend-otp"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"transactionId\": \"{{transactionId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Forgot Password Reset",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/auth/forgot-password/reset"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"transactionId\": \"{{transactionId}}\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPass@123\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile & Stations",
+          "item": [
+            {
+              "name": "My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/me"
+                }
+              }
+            },
+            {
+              "name": "Update Profile",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/me"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Station Admin\",\n  \"mobile\": \"8888888888\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/change-password"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"oldPassword\": \"Sa@123\",\n  \"newPassword\": \"Sa@1234\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List Stations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/stations"
+                }
+              }
+            },
+            {
+              "name": "Station Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/stations/{{stationId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard",
+          "item": [
+            {
+              "name": "Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/dashboard?stationId={{stationId}}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Content",
+          "item": [
+            {
+              "name": "List Ride Plans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/ride-plans?stationId={{stationId}}&status=PENDING"
+                }
+              }
+            },
+            {
+              "name": "Create Ride Plan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/ride-plans"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"code\": \"DAY_PASS\",\n  \"name\": \"Full Day\",\n  \"type\": \"DAY_PASS\",\n  \"durationHours\": 12,\n  \"price\": 399,\n  \"securityDeposit\": 500,\n  \"description\": \"A full-day option for work or travel.\",\n  \"perks\": [\n    \"Up to 12 hours\",\n    \"Best value per hour\"\n  ],\n  \"badge\": \"Most Popular\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Ride Plan",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/ride-plans/{{planId}}"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"code\": \"DAY_PASS\",\n  \"name\": \"Full Day\",\n  \"type\": \"DAY_PASS\",\n  \"durationHours\": 12,\n  \"price\": 399,\n  \"securityDeposit\": 500,\n  \"description\": \"Updated description\",\n  \"perks\": [\n    \"Up to 12 hours\"\n  ],\n  \"badge\": \"Most Popular\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List FAQs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/faqs?stationId={{stationId}}&status=PENDING"
+                }
+              }
+            },
+            {
+              "name": "Create FAQ",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/faqs"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"question\": \"How do I unlock the scooty?\",\n  \"answer\": \"Open the active booking and use the unlock code from the app.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update FAQ",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/faqs/{{faqId}}"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"question\": \"How do I unlock the scooty?\",\n  \"answer\": \"Use the unlock code from the app.\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vehicles",
+          "item": [
+            {
+              "name": "List Vehicles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/vehicles?status=ACTIVE&q=&page=1&limit=20"
+                }
+              }
+            },
+            {
+              "name": "Create Vehicle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/vehicles"
+                },
+                "description": "If the controller expects files, send multipart/form-data in Postman.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ownerId\": \"{{ownerId}}\",\n  \"modelName\": \"Ola S1 Pro\",\n  \"registrationNumber\": \"KA-01-AB-1234\",\n  \"chassisNumber\": \"CHASSIS123\",\n  \"batteryPercent\": 85,\n  \"locationLabel\": \"Station A - Bay 3\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Vehicle Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/vehicles/{{vehicleId}}"
+                }
+              }
+            },
+            {
+              "name": "Update Vehicle Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/vehicles/{{vehicleId}}/status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"MAINTENANCE\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bookings",
+          "item": [
+            {
+              "name": "List Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings"
+                }
+              }
+            },
+            {
+              "name": "Booking Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}"
+                }
+              }
+            },
+            {
+              "name": "Approve Booking",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/approve"
+                }
+              }
+            },
+            {
+              "name": "Cancel Booking",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/cancel"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rides",
+          "item": [
+            {
+              "name": "List Rides",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/rides"
+                }
+              }
+            },
+            {
+              "name": "Ride Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/rides/{{rideId}}"
+                }
+              }
+            },
+            {
+              "name": "Force End Ride",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/rides/{{rideId}}/force-end"
+                }
+              }
+            },
+            {
+              "name": "Lock Vehicle",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/rides/{{rideId}}/lock-vehicle"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Maintenance",
+          "item": [
+            {
+              "name": "List Maintenance Logs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/maintenance-logs"
+                }
+              }
+            },
+            {
+              "name": "Create Maintenance Log",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/maintenance-logs"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"title\": \"Tyre issue\",\n  \"description\": \"Need tyre replacement\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Maintenance Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/maintenance-logs/{{requestId}}"
+                }
+              }
+            },
+            {
+              "name": "Update Maintenance Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/maintenance-logs/{{requestId}}/status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support",
+          "item": [
+            {
+              "name": "Support Tickets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/support/tickets"
+                }
+              }
+            },
+            {
+              "name": "Support Ticket Detail",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/support/tickets/{{ticketId}}"
+                }
+              }
+            },
+            {
+              "name": "Update Ticket Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/support/tickets/{{ticketId}}/status"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Escalate Ticket",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/support/tickets/{{ticketId}}/escalate"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Needs admin attention\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/notifications"
+                }
+              }
+            },
+            {
+              "name": "Mark Notification Read",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/notifications/{{notificationId}}/read"
+                }
+              }
+            },
+            {
+              "name": "Mark All Notifications Read",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/notifications/read-all"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports & Finance",
+          "item": [
+            {
+              "name": "Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/reports"
+                }
+              }
+            },
+            {
+              "name": "Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/transactions"
+                }
+              }
+            },
+            {
+              "name": "Booking Invoice",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/invoice"
+                }
+              }
+            },
+            {
+              "name": "Booking Invoice PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/invoice/pdf"
+                }
+              }
+            },
+            {
+              "name": "Booking Refund",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/refund"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"PROCESSING\",\n  \"note\": \"Refund under review\"\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/v1/api",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stationAdminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stationAdminId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vehicleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ticketId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "requestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "settlementId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rideId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "planId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "faqId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

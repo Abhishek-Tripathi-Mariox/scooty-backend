@@ -90,6 +90,11 @@ router.patch(
   AdminAuthMiddleware().requirePermission("users"),
   ErrorHandle(AdminPanelController.updateUserStatus),
 );
+router.patch(
+  "/users/:userId/kyc-status",
+  AdminAuthMiddleware().requirePermission("users"),
+  ErrorHandle(AdminPanelController.updateUserKycStatus),
+);
 router.get(
   "/pricing",
   AdminAuthMiddleware().requirePermission("pricing"),
