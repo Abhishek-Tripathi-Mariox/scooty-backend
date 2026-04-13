@@ -10,15 +10,23 @@ const DEFAULT_COMMISSION = {
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
-const toDate = (value) => {
+const toDate = (value, boundary = "start") => {
   if (!value) return null;
+  const isDateOnly = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+  if (isDateOnly) {
+    const time = boundary === "end" ? "23:59:59.999" : "00:00:00";
+    const date = new Date(`${value}T${time}+05:30`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
 };
 
 const buildRange = (from, to) => {
-  const start = toDate(from);
-  const end = toDate(to);
+  const start = toDate(from, "start");
+  const end = toDate(to, "end");
   return {
     ...(start ? { $gte: start } : {}),
     ...(end ? { $lte: end } : {}),
@@ -675,12 +683,18 @@ module.exports = () => {
       if (booking.status === "COMPLETED") {
         const breakdown = await getBreakdown(booking);
         const ownerIdValue = booking.vehicleId?.ownerId || null;
-        if (ownerIdValue) {
-          rows.push({
-            ...baseRecord,
-            userId: ownerIdValue,
-            role: "OWNER",
-            type: "OWNER_EARNING",
+      if (ownerIdValue) {
+        const vehicleLabel =
+          booking.vehicleId?.modelName ||
+          booking.vehicleId?.registrationNumber ||
+          booking.planName ||
+          booking.planCode ||
+          "Vehicle";
+        rows.push({
+          ...baseRecord,
+          userId: ownerIdValue,
+          role: "OWNER",
+          type: "OWNER_EARNING",
             direction: "CREDIT",
             status: "SUCCESS",
             amount: breakdown.ownerAmount,
@@ -688,12 +702,20 @@ module.exports = () => {
             ownerAmount: breakdown.ownerAmount,
             platformAmount: breakdown.platformAmount,
             taxAmount: breakdown.taxAmount,
-            referenceId: booking.payment?.referenceId || "",
-            description: `Earning for ${booking.planName || booking.planCode || "ride"}`,
-            createdAt: booking.rideEndedAt || booking.updatedAt || booking.createdAt,
-            stationId: booking.pickupStationId?._id || booking.pickupStationId || null,
-          });
-        }
+          referenceId: booking.payment?.referenceId || "",
+          description: `Earning for ${booking.planName || booking.planCode || "ride"}`,
+          createdAt: booking.rideEndedAt || booking.updatedAt || booking.createdAt,
+          stationId: booking.pickupStationId?._id || booking.pickupStationId || null,
+          vehicleId: booking.vehicleId?._id || booking.vehicleId || null,
+          vehicleLabel,
+          meta: {
+            bookingId: booking._id,
+            ownerId: ownerIdValue,
+            vehicleId: booking.vehicleId?._id || booking.vehicleId || null,
+            vehicleLabel,
+          },
+        });
+      }
 
         rows.push({
           ...baseRecord,
@@ -768,7 +790,7 @@ module.exports = () => {
     limit = 20,
   } = {}) => {
     const pageNumber = Math.max(1, parseInt(String(page), 10) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const pageSize = Math.min(1000, Math.max(1, parseInt(String(limit), 10) || 20));
     const skip = (pageNumber - 1) * pageSize;
 
     const query = {};

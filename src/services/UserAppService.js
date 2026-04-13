@@ -808,7 +808,12 @@ module.exports = () => {
         bookingId: booking._id,
         referenceId: booking.payment?.referenceId || "",
         description: `Earning for ${booking.planName || booking.planCode || "ride"}`,
-        meta: { bookingId: booking._id, ownerId },
+        meta: {
+          bookingId: booking._id,
+          ownerId,
+          vehicleId: booking.vehicleId,
+          vehicleLabel: vehicle?.modelName || vehicle?.registrationNumber || booking.planName || booking.planCode || "",
+        },
         stationId: booking.pickupStationId,
         createdAt: endedAt,
       });
