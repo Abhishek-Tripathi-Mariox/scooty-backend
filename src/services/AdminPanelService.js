@@ -232,6 +232,12 @@ module.exports = () => {
     };
   };
 
+  const getUserById = async (userId) => {
+    if (!mongoose.Types.ObjectId.isValid(String(userId || ""))) return null;
+    const user = await models.User.findById(userId).select("-passwordHash").lean();
+    return user;
+  };
+
   const updateUserStatus = async ({ adminId, userId, isActive, note }) => {
     if (!mongoose.Types.ObjectId.isValid(String(userId || ""))) return null;
     const user = await models.User.findById(userId);
@@ -931,6 +937,7 @@ module.exports = () => {
     recordAuditLog,
     getDashboard,
     listUsers,
+    getUserById,
     updateUserStatus,
     updateUserKycStatus,
     getPricing,

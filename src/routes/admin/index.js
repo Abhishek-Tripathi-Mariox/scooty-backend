@@ -37,6 +37,11 @@ router.post(
   AdminAuthMiddleware().requireRole("ADMIN"),
   ErrorHandle(AdminUserController.createStationAdmin),
 );
+router.patch(
+  "/station-admins/:stationAdminId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminUserController.updateStationAdmin),
+);
 
 // Station management
 router.get(
@@ -84,6 +89,11 @@ router.get(
   "/users",
   AdminAuthMiddleware().requirePermission("users"),
   ErrorHandle(AdminPanelController.listUsers),
+);
+router.get(
+  "/users/:userId",
+  AdminAuthMiddleware().requirePermission("users"),
+  ErrorHandle(AdminPanelController.getUserDetail),
 );
 router.patch(
   "/users/:userId/status",

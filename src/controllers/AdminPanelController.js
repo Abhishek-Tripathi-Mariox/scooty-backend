@@ -45,6 +45,17 @@ module.exports = {
     return ResponseMiddleware(req, res, next);
   },
 
+  getUserDetail: async (req, res, next) => {
+    const user = await AdminPanelService().getUserById(req.params.userId);
+    if (!user) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+    req.rData = { user };
+    req.msg = "user_detail_fetched";
+    return ResponseMiddleware(req, res, next);
+  },
+
   updateUserStatus: async (req, res, next) => {
     const isActive = parseBoolean(req.body.isActive);
     if (isActive === null) {
