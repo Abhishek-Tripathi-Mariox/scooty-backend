@@ -8,6 +8,9 @@ const AdminUserController = require("../../controllers/AdminUserController");
 const AdminStationController = require("../../controllers/AdminStationController");
 const AdminContentController = require("../../controllers/AdminContentController");
 const AdminPanelController = require("../../controllers/AdminPanelController");
+const AdminVehicleController = require("../../controllers/AdminVehicleController");
+const AdminMaintenanceController = require("../../controllers/AdminMaintenanceController");
+const AdminNotificationController = require("../../controllers/AdminNotificationController");
 
 // Authentication
 router.post("/auth/login", ErrorHandle(AdminAuthController.login));
@@ -81,9 +84,64 @@ router.patch(
 
 // Super admin panel
 router.get(
+  "/vehicles",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminVehicleController.list),
+);
+router.post(
+  "/vehicles",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminVehicleController.create),
+);
+router.get(
+  "/vehicles/:vehicleId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminVehicleController.detail),
+);
+router.patch(
+  "/vehicles/:vehicleId/status",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminVehicleController.updateStatus),
+);
+router.get(
+  "/maintenance-logs",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminMaintenanceController.list),
+);
+router.post(
+  "/maintenance-logs",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminMaintenanceController.create),
+);
+router.get(
+  "/maintenance-logs/:requestId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminMaintenanceController.detail),
+);
+router.patch(
+  "/maintenance-logs/:requestId/status",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminMaintenanceController.updateStatus),
+);
+router.get(
   "/dashboard",
   AdminAuthMiddleware().requirePermission("dashboard"),
   ErrorHandle(AdminPanelController.dashboard),
+);
+router.get(
+  "/notifications",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminNotificationController.list),
+);
+router.patch(
+  "/notifications/:notificationId/read",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminNotificationController.markRead),
+);
+router.patch(
+  "/notifications/read-all",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminNotificationController.markAllRead),
 );
 router.get(
   "/users",

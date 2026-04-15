@@ -4,6 +4,17 @@ const AuditLogService = require("./AuditLogService");
 const { hashPassword, normalizePassword } = require("../util/password");
 const FinanceService = require("./FinanceService");
 
+const VEHICLE_STATUS_ACTIONS = {
+  MARK_ACTIVE: "ACTIVE",
+  MARK_MAINTENANCE: "MAINTENANCE",
+  ASSIGN_CHARGING: "CHARGING",
+  MARK_INACTIVE: "INACTIVE",
+};
+
+const VEHICLE_STATUSES = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
+const MAINTENANCE_STATUSES = new Set(["OPEN", "IN_PROGRESS", "COMPLETED", "REJECTED"]);
+const ADMIN_NOTIFICATION_TYPES = new Set(["RIDE", "EARNING", "ALERT", "SYSTEM"]);
+
 const DEFAULT_PRICING = {
   currency: "INR",
   baseFarePerHour: 0,
@@ -58,6 +69,160 @@ const sanitizeUser = (user) => {
 const sanitizePermissions = (permissions) => {
   if (!Array.isArray(permissions)) return [];
   return permissions.map((item) => String(item || "").trim()).filter(Boolean);
+};
+
+const sanitizeVehicle = (vehicle) => {
+  if (!vehicle) return vehicle;
+  return vehicle.toObject ? vehicle.toObject() : { ...vehicle };
+};
+
+const formatVehicle = (vehicle) => {
+  const raw = sanitizeVehicle(vehicle);
+  const station = raw?.stationId && typeof raw.stationId === "object"
+    ? raw.stationId
+    : null;
+  const owner = raw?.ownerId && typeof raw.ownerId === "object"
+    ? raw.ownerId
+    : null;
+
+  return {
+    ...raw,
+    station: station
+      ? {
+          id: station._id || station.id,
+          name: station.name || "",
+          address: station.address || "",
+        }
+      : raw.station || null,
+    owner: owner
+      ? {
+          id: owner._id || owner.id,
+          name: owner.name || "",
+          email: owner.email || "",
+          role: owner.role || "",
+        }
+      : raw.owner || null,
+    batteryPercent: raw.batteryPercent ?? null,
+    locationLabel: raw.locationLabel || station?.name || "",
+  };
+};
+
+const resolveStationByValue = async (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  if (mongoose.Types.ObjectId.isValid(raw)) {
+    const byId = await models.Station.findById(raw).lean();
+    if (byId) return byId;
+  }
+
+  return await models.Station.findOne({
+    name: { $regex: `^${raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  }).lean();
+};
+
+const formatMaintenanceStatus = (status) => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "OPEN") return "Pending";
+  if (normalized === "IN_PROGRESS") return "In Progress";
+  if (normalized === "COMPLETED") return "Completed";
+  if (normalized === "REJECTED") return "Rejected";
+  return status || "Pending";
+};
+
+const normalizeMaintenanceIssueType = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  const map = {
+    BATTERY_REPLACEMENT: "BATTERY",
+    BATTERY: "BATTERY",
+    BRAKE_SERVICE: "BRAKE",
+    BRAKE: "BRAKE",
+    TIRE_CHANGE: "TIRE",
+    TIRE: "TIRE",
+    ELECTRICAL: "ELECTRICAL",
+    BODY: "BODY",
+    MOTOR: "MOTOR",
+    GENERAL_SERVICE: "OTHER",
+    DAMAGE_REPAIR: "BODY",
+    OTHER: "OTHER",
+  };
+  return map[normalized] || "OTHER";
+};
+
+const formatMaintenanceLog = (request) => {
+  const raw = request?.toObject ? request.toObject() : { ...request };
+  const vehicle = raw?.vehicleId && typeof raw.vehicleId === "object" ? raw.vehicleId : null;
+  return {
+    ...raw,
+    id: raw._id || raw.id,
+    logId: raw._id || raw.id,
+    vehicleId: vehicle
+      ? vehicle.registrationNumber || vehicle.modelName || vehicle._id || ""
+      : raw.vehicleId,
+    vehicle: vehicle
+      ? {
+          id: vehicle._id || vehicle.id,
+          modelName: vehicle.modelName || "",
+          registrationNumber: vehicle.registrationNumber || "",
+          status: vehicle.status || "",
+        }
+      : raw.vehicle || null,
+    status: formatMaintenanceStatus(raw.status),
+    cost: raw.estimatedCost ?? raw.cost ?? null,
+    date: raw.createdAt,
+  };
+};
+
+const formatAdminNotification = (notificationDoc) => {
+  const notification = notificationDoc?.toObject ? notificationDoc.toObject() : { ...notificationDoc };
+  return {
+    ...notification,
+    id: notification._id || notification.id,
+    createdAtLabel: notification.createdAt
+      ? new Date(notification.createdAt).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: "Asia/Kolkata",
+        })
+      : "",
+  };
+};
+
+const normalizeAdminNotificationType = (value) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return ADMIN_NOTIFICATION_TYPES.has(normalized) ? normalized : "SYSTEM";
+};
+
+const buildVehicleQuery = ({ stationId, status, q } = {}) => {
+  const query = {};
+  const searchStationId = String(stationId || "").trim();
+  if (searchStationId && mongoose.Types.ObjectId.isValid(searchStationId)) {
+    query.stationId = searchStationId;
+  }
+
+  const normalizedStatus = String(status || "").trim().toUpperCase();
+  if (normalizedStatus && VEHICLE_STATUSES.has(normalizedStatus)) {
+    query.status = normalizedStatus;
+  }
+
+  const search = String(q || "").trim();
+  if (search) {
+    query.$or = [
+      { modelName: { $regex: search, $options: "i" } },
+      { registrationNumber: { $regex: search, $options: "i" } },
+      { chassisNumber: { $regex: search, $options: "i" } },
+      { locationLabel: { $regex: search, $options: "i" } },
+    ];
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      query.$or.push({ _id: search });
+    }
+  }
+
+  return query;
 };
 
 const normalizeBoolean = (value, fallback = false) => {
@@ -933,6 +1098,412 @@ module.exports = () => {
     };
   };
 
+  const listVehicles = async ({ stationId, status, q, page = 1, limit = 20 } = {}) => {
+    const pageNumber = Math.max(1, toInt(page, 1));
+    const pageSize = Math.min(100, Math.max(1, toInt(limit, 20)));
+    const skip = (pageNumber - 1) * pageSize;
+    const query = buildVehicleQuery({ stationId, status, q });
+
+    const [total, vehicles] = await Promise.all([
+      models.Vehicle.countDocuments(query),
+      models.Vehicle.find(query)
+        .sort({ createdAt: -1 })
+        .populate("stationId", "name address")
+        .populate("ownerId", "name email role")
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return {
+      vehicles: vehicles.map(formatVehicle),
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        total,
+        totalPages,
+        hasNextPage: pageNumber < totalPages,
+        hasPrevPage: pageNumber > 1,
+      },
+    };
+  };
+
+  const createVehicle = async ({ adminId, payload = {} }) => {
+    const registrationNumber = String(payload.registrationNumber || payload.registrationNo || "").trim();
+    if (!registrationNumber) {
+      const err = new Error("registrationNumber is required");
+      err.code = "INVALID_VEHICLE_INPUT";
+      throw err;
+    }
+
+    const modelName = String(payload.modelName || payload.model || "").trim();
+    const stationValue = payload.stationId || payload.station || "";
+    const station = await resolveStationByValue(stationValue);
+    if (!station) {
+      const err = new Error("Station not found");
+      err.code = "STATION_NOT_FOUND";
+      throw err;
+    }
+
+    const vehicle = await models.Vehicle.create({
+      ownerId: payload.ownerId && mongoose.Types.ObjectId.isValid(String(payload.ownerId))
+        ? payload.ownerId
+        : adminId,
+      stationId: station._id,
+      modelName,
+      registrationNumber,
+      chassisNumber: String(payload.chassisNumber || "").trim(),
+      batteryPercent:
+        payload.batteryPercent === undefined || payload.batteryPercent === null || payload.batteryPercent === ""
+          ? null
+          : Number(payload.batteryPercent),
+      locationLabel: String(payload.locationLabel || station.name || "").trim(),
+      status: VEHICLE_STATUSES.has(String(payload.status || "").trim().toUpperCase())
+        ? String(payload.status || "").trim().toUpperCase()
+        : "DRAFT",
+    });
+
+    await recordAuditLog({
+      actorId: adminId,
+      actorRole: "ADMIN",
+      action: "ADMIN_VEHICLE_CREATED",
+      entityType: "Vehicle",
+      entityId: vehicle._id,
+      after: sanitizeVehicle(vehicle),
+      meta: { stationId: station._id, registrationNumber, modelName },
+    });
+
+    await createAdminNotification({
+      adminId,
+      type: "SYSTEM",
+      title: "Vehicle added",
+      message: `${registrationNumber} added to ${station.name || "station"}`,
+      meta: { vehicleId: vehicle._id, stationId: station._id },
+    });
+
+    return formatVehicle(await models.Vehicle.findById(vehicle._id).populate("stationId", "name address").populate("ownerId", "name email role").lean());
+  };
+
+  const getVehicleById = async (vehicleId) => {
+    if (!mongoose.Types.ObjectId.isValid(String(vehicleId || ""))) return null;
+    const vehicle = await models.Vehicle.findById(vehicleId)
+      .populate("stationId", "name address")
+      .populate("ownerId", "name email role")
+      .lean();
+    return vehicle ? formatVehicle(vehicle) : null;
+  };
+
+  const createAdminNotification = async ({ adminId, type = "SYSTEM", title = "", message = "", meta = {} }) => {
+    const recipientId = String(adminId || "").trim();
+    if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) return null;
+
+    const notification = await models.Notification.create({
+      userId: recipientId,
+      type: normalizeAdminNotificationType(type),
+      title: String(title || "").trim(),
+      message: String(message || "").trim(),
+      isRead: false,
+      meta: meta && typeof meta === "object" ? meta : {},
+    });
+
+    return formatAdminNotification(notification);
+  };
+
+  const listAdminNotifications = async ({ adminId, type, page = 1, limit = 100 } = {}) => {
+    const recipientId = String(adminId || "").trim();
+    if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) {
+      return { notifications: [], unreadCount: 0, pagination: { page: 1, limit: 100, hasNextPage: false } };
+    }
+
+    const query = { userId: recipientId };
+    const normalizedType = String(type || "").trim().toUpperCase();
+    if (normalizedType && ADMIN_NOTIFICATION_TYPES.has(normalizedType)) {
+      query.type = normalizedType;
+    }
+
+    const pageNumber = Math.max(1, toInt(page, 1));
+    const pageSize = Math.min(200, Math.max(1, toInt(limit, 100)));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [notifications, unreadCount] = await Promise.all([
+      models.Notification.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      models.Notification.countDocuments({ userId: recipientId, isRead: false }),
+    ]);
+
+    return {
+      notifications: notifications.map(formatAdminNotification),
+      unreadCount,
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        hasNextPage: notifications.length === pageSize,
+      },
+    };
+  };
+
+  const markAdminNotificationRead = async ({ adminId, notificationId }) => {
+    const recipientId = String(adminId || "").trim();
+    if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) return null;
+    if (!mongoose.Types.ObjectId.isValid(String(notificationId || ""))) return null;
+
+    const notification = await models.Notification.findOne({
+      _id: notificationId,
+      userId: recipientId,
+    });
+    if (!notification) return null;
+
+    notification.isRead = true;
+    await notification.save();
+    return formatAdminNotification(notification);
+  };
+
+  const markAllAdminNotificationsRead = async ({ adminId, type = null } = {}) => {
+    const recipientId = String(adminId || "").trim();
+    if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) {
+      return { matchedCount: 0, modifiedCount: 0 };
+    }
+
+    const query = { userId: recipientId, isRead: false };
+    const normalizedType = String(type || "").trim().toUpperCase();
+    if (normalizedType && ADMIN_NOTIFICATION_TYPES.has(normalizedType)) {
+      query.type = normalizedType;
+    }
+
+    const result = await models.Notification.updateMany(query, {
+      $set: { isRead: true },
+    });
+
+    return {
+      matchedCount: result.matchedCount ?? result.n ?? 0,
+      modifiedCount: result.modifiedCount ?? result.nModified ?? 0,
+    };
+  };
+
+  const updateVehicleStatus = async ({ adminId, vehicleId, status, note = "" }) => {
+    if (!mongoose.Types.ObjectId.isValid(String(vehicleId || ""))) return null;
+
+    const normalizedStatus = String(status || "").trim().toUpperCase();
+    if (!VEHICLE_STATUSES.has(normalizedStatus)) {
+      const err = new Error("Invalid status");
+      err.code = "INVALID_STATUS";
+      throw err;
+    }
+
+    const vehicle = await models.Vehicle.findById(vehicleId);
+    if (!vehicle) return null;
+
+    const before = sanitizeVehicle(vehicle);
+    vehicle.status = normalizedStatus;
+    if (typeof note === "string") vehicle.approvalNote = note.trim();
+    await vehicle.save();
+
+    await recordAuditLog({
+      actorId: adminId,
+      actorRole: "ADMIN",
+      action: "ADMIN_VEHICLE_STATUS_UPDATED",
+      entityType: "Vehicle",
+      entityId: vehicle._id,
+      before,
+      after: sanitizeVehicle(vehicle),
+      meta: { status: normalizedStatus, note: note || "" },
+    });
+
+    await createAdminNotification({
+      adminId,
+      type: normalizedStatus === "MAINTENANCE" ? "ALERT" : "SYSTEM",
+      title: "Vehicle status updated",
+      message: `${vehicle.registrationNumber || "Vehicle"} marked as ${normalizedStatus.replace(/_/g, " ").toLowerCase()}`,
+      meta: { vehicleId: vehicle._id, status: normalizedStatus },
+    });
+
+    return formatVehicle(await models.Vehicle.findById(vehicleId).populate("stationId", "name address").populate("ownerId", "name email role").lean());
+  };
+
+  const listMaintenanceLogs = async ({ status, q, page = 1, limit = 20 } = {}) => {
+    const pageNumber = Math.max(1, toInt(page, 1));
+    const pageSize = Math.min(100, Math.max(1, toInt(limit, 20)));
+    const skip = (pageNumber - 1) * pageSize;
+    const query = {};
+
+    const normalizedStatus = String(status || "").trim().toUpperCase();
+    if (normalizedStatus && MAINTENANCE_STATUSES.has(normalizedStatus)) {
+      query.status = normalizedStatus;
+    }
+
+    const search = String(q || "").trim();
+    if (search) {
+      query.$or = [
+        { issueType: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+      if (mongoose.Types.ObjectId.isValid(search)) {
+        query.$or.push({ _id: search });
+      }
+    }
+
+    const [total, logs] = await Promise.all([
+      models.MaintenanceRequest.countDocuments(query),
+      models.MaintenanceRequest.find(query)
+        .sort({ createdAt: -1 })
+        .populate("vehicleId", "modelName registrationNumber status stationId")
+        .populate("userId", "name email mobile")
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    return {
+      logs: logs.map(formatMaintenanceLog),
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        total,
+        totalPages,
+        hasNextPage: pageNumber < totalPages,
+        hasPrevPage: pageNumber > 1,
+      },
+    };
+  };
+
+  const createMaintenanceLog = async ({ adminId, payload }) => {
+    const vehicleId = String(payload.vehicleId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+      const err = new Error("vehicleId is required");
+      err.code = "INVALID_VEHICLE";
+      throw err;
+    }
+
+    const vehicle = await models.Vehicle.findById(vehicleId);
+    if (!vehicle) {
+      const err = new Error("Vehicle not found");
+      err.code = "VEHICLE_NOT_FOUND";
+      throw err;
+    }
+
+    const description = String(payload.description || "").trim();
+    if (!description) {
+      const err = new Error("description is required");
+      err.code = "INVALID_MAINTENANCE_INPUT";
+      throw err;
+    }
+
+    const estimatedCostRaw = payload.estimatedCost ?? payload.cost;
+    const estimatedCost =
+      estimatedCostRaw === undefined || estimatedCostRaw === null || String(estimatedCostRaw).trim() === ""
+        ? null
+        : Number(estimatedCostRaw);
+    if (estimatedCost !== null && Number.isNaN(estimatedCost)) {
+      const err = new Error("estimatedCost must be a number");
+      err.code = "INVALID_MAINTENANCE_INPUT";
+      throw err;
+    }
+
+    const request = await models.MaintenanceRequest.create({
+      userId: adminId,
+      vehicleId: vehicle._id,
+      stationId: vehicle.stationId || undefined,
+      issueType: normalizeMaintenanceIssueType(payload.issueType),
+      description,
+      estimatedCost,
+      photoUrls: [],
+      status: "OPEN",
+    });
+
+    await recordAuditLog({
+      actorId: adminId,
+      actorRole: "ADMIN",
+      action: "MAINTENANCE_CREATED",
+      entityType: "MaintenanceRequest",
+      entityId: request._id,
+      after: request.toObject(),
+      meta: { stationId: vehicle.stationId || null, vehicleId: vehicle._id, issueType: request.issueType },
+    });
+
+    await createAdminNotification({
+      adminId,
+      type: "ALERT",
+      title: "Maintenance request created",
+      message: `${vehicle.registrationNumber || "Vehicle"} moved to maintenance`,
+      meta: { vehicleId: vehicle._id, requestId: request._id, issueType: request.issueType },
+    });
+
+    vehicle.status = "MAINTENANCE";
+    await vehicle.save();
+
+    const created = await models.MaintenanceRequest.findById(request._id)
+      .populate("vehicleId", "modelName registrationNumber status stationId")
+      .populate("userId", "name email mobile")
+      .lean();
+    return formatMaintenanceLog(created);
+  };
+
+  const getMaintenanceLogById = async (requestId) => {
+    if (!mongoose.Types.ObjectId.isValid(String(requestId || ""))) return null;
+    const request = await models.MaintenanceRequest.findById(requestId)
+      .populate("vehicleId", "modelName registrationNumber status stationId")
+      .populate("userId", "name email mobile")
+      .lean();
+    return request ? formatMaintenanceLog(request) : null;
+  };
+
+  const updateMaintenanceStatus = async ({ adminId, requestId, status, resolutionNote = "" }) => {
+    if (!mongoose.Types.ObjectId.isValid(String(requestId || ""))) return null;
+
+    const normalizedStatus = String(status || "").trim().toUpperCase();
+    if (!MAINTENANCE_STATUSES.has(normalizedStatus)) {
+      const err = new Error("Invalid maintenance status");
+      err.code = "INVALID_MAINTENANCE_STATUS";
+      throw err;
+    }
+
+    const request = await models.MaintenanceRequest.findById(requestId);
+    if (!request) return null;
+    const before = request.toObject();
+
+    request.status = normalizedStatus;
+    request.resolutionNote = String(resolutionNote || "").trim();
+    await request.save();
+
+    const vehicleStatus = normalizedStatus === "COMPLETED" || normalizedStatus === "REJECTED" ? "ACTIVE" : "MAINTENANCE";
+    await models.Vehicle.updateOne(
+      { _id: request.vehicleId },
+      { $set: { status: vehicleStatus } },
+    );
+
+    await recordAuditLog({
+      actorId: adminId,
+      actorRole: "ADMIN",
+      action: "MAINTENANCE_STATUS_UPDATED",
+      entityType: "MaintenanceRequest",
+      entityId: request._id,
+      before,
+      after: request.toObject(),
+      meta: { status: normalizedStatus, vehicleStatus },
+    });
+
+    await createAdminNotification({
+      adminId,
+      type: normalizedStatus === "COMPLETED" ? "SYSTEM" : "ALERT",
+      title: "Maintenance status updated",
+      message: `Maintenance request ${request._id} is now ${normalizedStatus.replace(/_/g, " ").toLowerCase()}`,
+      meta: { requestId: request._id, vehicleStatus, status: normalizedStatus },
+    });
+
+    const updated = await models.MaintenanceRequest.findById(requestId)
+      .populate("vehicleId", "modelName registrationNumber status stationId")
+      .populate("userId", "name email mobile")
+      .lean();
+    return formatMaintenanceLog(updated);
+  };
+
   return {
     recordAuditLog,
     getDashboard,
@@ -956,5 +1527,17 @@ module.exports = () => {
     createAdmin,
     updateAdmin,
     listAuditLogs,
+    listVehicles,
+    createVehicle,
+    getVehicleById,
+    createAdminNotification,
+    listAdminNotifications,
+    markAdminNotificationRead,
+    markAllAdminNotificationsRead,
+    updateVehicleStatus,
+    listMaintenanceLogs,
+    createMaintenanceLog,
+    getMaintenanceLogById,
+    updateMaintenanceStatus,
   };
 };
