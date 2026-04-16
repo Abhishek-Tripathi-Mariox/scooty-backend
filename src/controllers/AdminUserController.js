@@ -35,6 +35,15 @@ module.exports = {
     const skip = (page - 1) * limit;
 
     const query = { role: { $in: STATION_ADMIN_ROLES } };
+    const search = String(req.query.q || "").trim();
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { mobile: { $regex: search, $options: "i" } },
+      ];
+    }
+
     const [total, admins] = await Promise.all([
       models.User.countDocuments(query),
       models.User.find(query)
@@ -145,6 +154,72 @@ module.exports = {
 
     req.rData = { admin: sanitizeAdmin(admin) };
     req.msg = "success";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  updateStationAdmin: async (req, res, next) => {
+    const stationAdminId = String(req.params.stationAdminId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(stationAdminId)) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "Invalid station admin id");
+    }
+
+    const stationAdmin = await models.User.findOne({
+      _id: stationAdminId,
+      role: { $in: STATION_ADMIN_ROLES },
+    });
+    if (!stationAdmin) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Station admin not found");
+    }
+
+    const before = sanitizeAdmin(stationAdmin);
+    const payload = req.body || {};
+
+    if (payload.stationId !== undefined) {
+      const stationId = String(payload.stationId || "").trim();
+      if (stationId) {
+        if (!mongoose.Types.ObjectId.isValid(stationId)) {
+          req.rCode = 0;
+          return ResponseMiddleware(req, res, next, "Invalid stationId");
+        }
+        const station = await models.Station.findById(stationId).lean();
+        if (!station) {
+          req.rCode = 5;
+          return ResponseMiddleware(req, res, next, "Station not found");
+        }
+        stationAdmin.stationId = stationId;
+      } else {
+        stationAdmin.stationId = undefined;
+      }
+    }
+
+    if (payload.isActive !== undefined) {
+      const isActive = payload.isActive;
+      if (typeof isActive !== "boolean" && !["true", "false", true, false].includes(isActive)) {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, "isActive must be boolean");
+      }
+      stationAdmin.isActive = isActive === true || isActive === "true";
+    }
+
+    await stationAdmin.save();
+
+    await AuditLogService().create({
+      actorId: req.body.adminId,
+      action: "STATION_ADMIN_UPDATED",
+      entityType: "User",
+      entityId: stationAdmin._id,
+      before,
+      after: sanitizeAdmin(stationAdmin),
+      meta: {
+        stationId: stationAdmin.stationId || null,
+        isActive: stationAdmin.isActive,
+      },
+    });
+
+    req.rData = { admin: sanitizeAdmin(stationAdmin) };
+    req.msg = "station admin updated successfully";
     return ResponseMiddleware(req, res, next);
   },
 };
