@@ -54,10 +54,155 @@ const pickVehicleImage = (vehicle) =>
 
 const buildUnlockCode = (bookingId) => `MV-${String(bookingId).slice(-6).toUpperCase()}`;
 
+const defaultNotificationsSettings = () => ({
+  rideUpdates: true,
+  earnings: true,
+  payout: true,
+  promotions: true,
+  maintenance: true,
+});
+
+const defaultPermissionsSettings = () => ({
+  location: false,
+  camera: false,
+  notifications: false,
+});
+
+const defaultLocationSettings = () => ({
+  isEnabled: false,
+  latitude: null,
+  longitude: null,
+  accuracy: null,
+  source: "",
+  city: "",
+  state: "",
+  pincode: "",
+  updatedAt: null,
+});
+
+const normalizeSettingsPayload = (payload = {}) => {
+  const input = payload.settings || payload || {};
+  return {
+    ...input,
+    notifications: {
+      ...defaultNotificationsSettings(),
+      ...(input.notifications || {}),
+    },
+    permissions: {
+      ...defaultPermissionsSettings(),
+      ...(input.permissions || {}),
+    },
+    location: {
+      ...defaultLocationSettings(),
+      ...(input.location || {}),
+    },
+  };
+};
+
 module.exports = () => {
   const getAdminPricing = async () => {
     const setting = await models.AdminSetting.findOne({ key: "pricing" }).lean();
     return setting?.value || {};
+  };
+
+  const getDashboard = async ({ userId }) => {
+    const user = await models.User.findById(userId).lean();
+    if (!user) return null;
+
+    const [completedSummary, unreadNotifications] = await Promise.all([
+      models.Booking.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(String(userId)),
+            status: "COMPLETED",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            ridesCompleted: { $sum: 1 },
+            totalSpent: { $sum: { $ifNull: ["$pricing.totalPayable", 0] } },
+          },
+        },
+      ]),
+      models.Notification.countDocuments({ userId, isRead: false }),
+    ]);
+
+    const summary = completedSummary?.[0] || {};
+    return {
+      walletBalance: round2(Number(user.walletBalance || 0)),
+      totalSpent: round2(Number(summary.totalSpent || 0)),
+      ridesCompleted: Number(summary.ridesCompleted || 0),
+      unreadNotifications,
+    };
+  };
+
+  const getSettings = async ({ userId }) => {
+    const user = await models.User.findById(userId).lean();
+    if (!user) return null;
+
+    return {
+      language: user.settings?.language || "en",
+      notifications: {
+        ...defaultNotificationsSettings(),
+        ...(user.settings?.notifications || {}),
+      },
+      permissions: {
+        ...defaultPermissionsSettings(),
+        ...(user.settings?.permissions || {}),
+      },
+      location: {
+        ...defaultLocationSettings(),
+        ...(user.settings?.location || {}),
+      },
+    };
+  };
+
+  const updateSettings = async ({ userId, payload }) => {
+    const user = await models.User.findById(userId);
+    if (!user) return null;
+
+    const settings = normalizeSettingsPayload(payload);
+    const language = String(settings.language || payload.language || user.settings?.language || "en").trim() || "en";
+
+    user.settings = {
+      ...(user.settings || {}),
+      language,
+      notifications: {
+        ...defaultNotificationsSettings(),
+        ...(user.settings?.notifications || {}),
+        ...(settings.notifications || {}),
+      },
+      permissions: {
+        ...defaultPermissionsSettings(),
+        ...(user.settings?.permissions || {}),
+        ...(settings.permissions || {}),
+      },
+      location: {
+        ...defaultLocationSettings(),
+        ...(user.settings?.location || {}),
+        ...(settings.location || {}),
+        updatedAt: settings.location ? new Date() : user.settings?.location?.updatedAt || null,
+      },
+    };
+
+    if (payload.city !== undefined) user.city = String(payload.city || "").trim();
+    if (payload.state !== undefined) user.state = String(payload.state || "").trim();
+    if (payload.pincode !== undefined) user.pincode = String(payload.pincode || "").trim();
+
+    await user.save();
+    return user.toObject();
+  };
+
+  const updateLocation = async ({ userId, payload }) => {
+    return await updateSettings({
+      userId,
+      payload: {
+        settings: {
+          location: payload.location || payload,
+        },
+      },
+    });
   };
 
   const createNotification = async ({ userId, type = "SYSTEM", title, message, meta = {} }) => {
@@ -621,6 +766,10 @@ module.exports = () => {
     return booking ? formatBooking(booking) : null;
   };
 
+  const rideDetail = async ({ userId, rideId }) => {
+    return await fetchBooking({ userId, bookingId: rideId });
+  };
+
   const confirmPayment = async ({ userId, bookingId, paymentMethod, paymentReferenceId }) => {
     const booking = await models.Booking.findOne({ _id: bookingId, userId });
     if (!booking) return null;
@@ -1152,6 +1301,10 @@ module.exports = () => {
   };
 
   return {
+    getDashboard,
+    getSettings,
+    updateSettings,
+    updateLocation,
     listPlans,
     listStations,
     stationDetail,
@@ -1160,6 +1313,7 @@ module.exports = () => {
     createBooking,
     listBookings,
     fetchBooking,
+    rideDetail,
     confirmPayment,
     startRide,
     completeRide,

@@ -15,7 +15,6 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, unique: true, sparse: true, index: true },
     mobile: { type: String, unique: true, sparse: true, index: true ,default: "" },
     profilePhotoUrl: { type: String },
-    language: { type: String, default: "en" },
     isActive: { type: Boolean, default: true },
     city:{type:String,default:""},
     adress:{type:String,default:""},
@@ -55,12 +54,29 @@ const UserSchema = new mongoose.Schema(
 
     // App preferences
     settings: {
+      language: { type: String, default: "en" },
       notifications: {
         rideUpdates: { type: Boolean, default: true },
         earnings: { type: Boolean, default: true },
         payout: { type: Boolean, default: true },
         promotions: { type: Boolean, default: true },
         maintenance: { type: Boolean, default: true },
+      },
+      permissions: {
+        location: { type: Boolean, default: false },
+        camera: { type: Boolean, default: false },
+        notifications: { type: Boolean, default: false },
+      },
+      location: {
+        isEnabled: { type: Boolean, default: false },
+        latitude: { type: Number, default: null },
+        longitude: { type: Number, default: null },
+        accuracy: { type: Number, default: null },
+        source: { type: String, default: "" },
+        city: { type: String, default: "" },
+        state: { type: String, default: "" },
+        pincode: { type: String, default: "" },
+        updatedAt: { type: Date },
       },
     },
   },

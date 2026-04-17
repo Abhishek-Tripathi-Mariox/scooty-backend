@@ -3,16 +3,33 @@ const UserService = require("../services/UserService");
 const UserAppService = require("../services/UserAppService");
 const fileUploadService = require("../util/s3");
 module.exports = {
+  dashboard: async (req, res, next) => {
+    const dashboard = await UserAppService().getDashboard({
+      userId: req.body.userId,
+    });
+    if (!dashboard) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+
+    req.rData = { dashboard };
+    req.msg = "dashboard_fetched";
+    return ResponseMiddleware(req, res, next);
+  },
+
   profile: async (req, res, next) => {
     const userId = req.body.userId;
-    const user = await UserService().fetchById(userId);
+    const [user, dashboard] = await Promise.all([
+      UserService().fetchById(userId),
+      UserAppService().getDashboard({ userId }),
+    ]);
 
     if (!user) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "User not found");
     }
 
-    req.rData = { user };
+    req.rData = { user, dashboard };
     req.msg = "profile_fetched";
     return ResponseMiddleware(req, res, next);
   },
@@ -32,7 +49,9 @@ module.exports = {
     if (typeof adress === "string") user.adress = adress.trim() || user.adress;
     if (typeof city === "string") user.city = city.trim() || user.city;
     if (typeof language === "string" && language.trim()) {
-      user.language = language.trim();
+      const normalizedLanguage = language.trim();
+      user.settings = user.settings || {};
+      user.settings.language = normalizedLanguage;
     }
 
     if (typeof email === "string") {
@@ -69,7 +88,8 @@ module.exports = {
 
     await user.save();
 
-    req.rData = { user };
+    const dashboard = await UserAppService().getDashboard({ userId });
+    req.rData = { user: user.toObject(), dashboard };
     req.msg = "profile_updated";
     return ResponseMiddleware(req, res, next);
   },
@@ -83,8 +103,8 @@ module.exports = {
 
   stations: async (req, res, next) => {
     const stations = await UserAppService().listStations({
-      lat: req.query.lat,
-      lng: req.query.lng,
+      lat: req.query.lat ?? req.query.latitude,
+      lng: req.query.lng ?? req.query.longitude,
       search: req.query.search,
     });
     req.rData = { stations };
@@ -101,6 +121,21 @@ module.exports = {
 
     req.rData = data;
     req.msg = "station_detail";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  rideDetail: async (req, res, next) => {
+    const ride = await UserAppService().rideDetail({
+      userId: req.body.userId,
+      rideId: req.params.rideId,
+    });
+    if (!ride) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "Ride not found");
+    }
+
+    req.rData = { ride };
+    req.msg = "ride_detail";
     return ResponseMiddleware(req, res, next);
   },
 
@@ -262,6 +297,64 @@ module.exports = {
 
     req.rData = { refund };
     req.msg = "refund_fetched";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  settings: async (req, res, next) => {
+    const settings = await UserAppService().getSettings({
+      userId: req.body.userId,
+    });
+    if (!settings) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+
+    req.rData = { settings };
+    req.msg = "settings_fetched";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  updateSettings: async (req, res, next) => {
+    const user = await UserAppService().updateSettings({
+      userId: req.body.userId,
+      payload: req.body || {},
+    });
+    if (!user) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+
+    req.rData = { user };
+    req.msg = "settings_updated";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  location: async (req, res, next) => {
+    const settings = await UserAppService().getSettings({
+      userId: req.body.userId,
+    });
+    if (!settings) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+
+    req.rData = { location: settings.location };
+    req.msg = "location_fetched";
+    return ResponseMiddleware(req, res, next);
+  },
+
+  updateLocation: async (req, res, next) => {
+    const user = await UserAppService().updateLocation({
+      userId: req.body.userId,
+      payload: req.body || {},
+    });
+    if (!user) {
+      req.rCode = 5;
+      return ResponseMiddleware(req, res, next, "User not found");
+    }
+
+    req.rData = { user };
+    req.msg = "location_updated";
     return ResponseMiddleware(req, res, next);
   },
 

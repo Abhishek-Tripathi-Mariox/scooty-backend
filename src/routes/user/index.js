@@ -15,6 +15,8 @@ router.get("/stations", ErrorHandle(UserController.stations));
 // Protected user routes
 router.use(AuthMiddleware().verifyUserToken);
 
+router.get("/dashboard", ErrorHandle(UserController.dashboard));
+
 // Discovery
 router.get("/plans", ErrorHandle(UserController.plans));
 router.get("/stations/:stationId", ErrorHandle(UserController.stationDetail));
@@ -29,6 +31,7 @@ router.post("/bookings/quote", ErrorHandle(UserController.bookingQuote));
 router.post("/bookings", ErrorHandle(UserController.createBooking));
 router.get("/bookings", ErrorHandle(UserController.bookings));
 router.get("/bookings/:bookingId", ErrorHandle(UserController.bookingDetail));
+router.get("/rides/history/:rideId", ErrorHandle(UserController.rideDetail));
 router.post("/bookings/:bookingId/pay", ErrorHandle(UserController.confirmPayment));
 router.post("/bookings/:bookingId/start", ErrorHandle(UserController.startRide));
 router.post("/bookings/:bookingId/complete", ErrorHandle(UserController.completeRide));
@@ -45,6 +48,12 @@ router.get("/bookings/:bookingId/receipt/pdf", ErrorHandle(UserController.bookin
 // Referral
 router.get("/referral", ErrorHandle(UserController.referralSummary));
 router.post("/referral/apply", ErrorHandle(UserController.applyReferralCode));
+
+// Settings
+router.get("/settings", ErrorHandle(UserController.settings));
+router.patch("/settings", ErrorHandle(UserController.updateSettings));
+router.get("/location", ErrorHandle(UserController.location));
+router.patch("/location", ErrorHandle(UserController.updateLocation));
 
 // Notifications
 router.get("/notifications", ErrorHandle(UserController.notifications));
