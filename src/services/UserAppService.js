@@ -447,11 +447,27 @@ module.exports = () => {
     }));
   };
 
-  const listStations = async ({ lat, lng, search } = {}) => {
+  const listStations = async ({ lat, lng, search, city, state } = {}) => {
     const query = { isActive: true };
+    const andFilters = [];
     if (search) {
       const regex = new RegExp(String(search).trim(), "i");
-      query.$or = [{ name: regex }, { address: regex }];
+      andFilters.push({ $or: [{ name: regex }, { address: regex }, { city: regex }, { state: regex }] });
+    }
+
+    const normalizedCity = String(city || "").trim();
+    const normalizedState = String(state || "").trim();
+    if (normalizedCity) {
+      const cityRegex = new RegExp(normalizedCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      andFilters.push({ $or: [{ city: cityRegex }, { address: cityRegex }, { name: cityRegex }] });
+    }
+    if (normalizedState) {
+      const stateRegex = new RegExp(normalizedState.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      andFilters.push({ $or: [{ state: stateRegex }, { address: stateRegex }, { name: stateRegex }] });
+    }
+
+    if (andFilters.length > 0) {
+      query.$and = andFilters;
     }
 
     const stations = await models.Station.find(query).sort({ createdAt: -1 }).lean();

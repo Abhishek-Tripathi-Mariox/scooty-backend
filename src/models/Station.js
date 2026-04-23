@@ -4,6 +4,8 @@ const StationSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     address: { type: String },
+    city: { type: String, default: "" },
+    state: { type: String, default: "" },
     parkingType: { type: String, enum: ["COVERED", "OPEN"], default: "OPEN" },
     stationAdminId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     location: {

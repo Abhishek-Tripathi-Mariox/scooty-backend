@@ -117,7 +117,7 @@ const buildStationSearchQuery = (stationId, { status, q } = {}) => {
   return query;
 };
 
-const formatListVehicle = ({ vehicle, station, lastRide, openMaintenanceCount = 0 }) => {
+const formatListVehicle = ({ vehicle, station, lastRide, openMaintenanceCount = 0, earnings = 0, rating = null, totalRides = 0 }) => {
   const lastRideAt = lastRide?.rideEndedAt || lastRide?.endAt || lastRide?.startAt || lastRide?.createdAt || null;
   const lastRideStatus = lastRide?.status || "";
 
@@ -133,10 +133,13 @@ const formatListVehicle = ({ vehicle, station, lastRide, openMaintenanceCount = 
     batteryPercent: vehicle.batteryPercent ?? null,
     locationLabel: vehicle.locationLabel || station?.name || "",
     openMaintenanceCount,
+    earnings,
+    rating,
+    totalRides,
     lastRide: lastRide
       ? {
-          rideId: lastRide._id,
-          status: lastRideStatus,
+        rideId: lastRide._id,
+        status: lastRideStatus,
           label:
             lastRideStatus === "ACTIVE"
               ? "Active"
@@ -198,6 +201,60 @@ module.exports = () => {
     if (!owner) return null;
     const query = { _id: vehicleId, ownerId };
     return await models.Vehicle.findOne(query).lean();
+  };
+
+  const detail = async (ownerId, vehicleId) => {
+    const vehicle = await fetchByIdDoc(ownerId, vehicleId);
+    if (!vehicle) return null;
+
+    const [station, recentBookings, maintenanceHistory, completedRideCount, activeRideCount, revenueRows, ratingRows] =
+      await Promise.all([
+        models.Station.findById(vehicle.stationId).lean(),
+        models.Booking.find({
+          vehicleId,
+          status: { $in: Array.from(rideStatuses) },
+        })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate("userId", "name")
+          .lean(),
+        models.MaintenanceRequest.find({ vehicleId }).sort({ createdAt: -1 }).limit(10).lean(),
+        models.Booking.countDocuments({ vehicleId, status: "COMPLETED" }),
+        models.Booking.countDocuments({ vehicleId, status: "ACTIVE" }),
+        models.Booking.aggregate([
+          { $match: { vehicleId, status: "COMPLETED" } },
+          { $group: { _id: null, revenue: { $sum: { $ifNull: ["$pricing.totalPayable", 0] } } } },
+        ]),
+        models.Booking.aggregate([
+          { $match: { vehicleId, rating: { $type: "number" } } },
+          { $group: { _id: null, averageRating: { $avg: "$rating" } } },
+        ]),
+      ]);
+
+    const totalRides = completedRideCount;
+    const revenue = revenueRows?.[0]?.revenue || 0;
+    const averageRating = ratingRows?.[0]?.averageRating || 0;
+
+    return {
+      ...vehicle.toObject(),
+      station: station
+        ? {
+            id: station._id,
+            name: station.name,
+            address: station.address || "",
+          }
+        : null,
+      batteryPercent: vehicle.batteryPercent ?? null,
+      locationLabel: vehicle.locationLabel || station?.name || "",
+      performance: {
+        totalRides,
+        activeRides: activeRideCount,
+        revenue,
+        averageRating: Math.round(averageRating * 10) / 10,
+      },
+      recentRideHistory: recentBookings.map(formatRideHistoryItem),
+      maintenanceHistory: maintenanceHistory.map(formatMaintenanceItem),
+    };
   };
 
   const fetchByIdDoc = async (ownerId, vehicleId) => {
@@ -494,7 +551,7 @@ module.exports = () => {
     }
 
     const vehicleIds = vehicles.map((vehicle) => vehicle._id);
-    const [bookings, maintenanceRows] = await Promise.all([
+    const [bookings, maintenanceRows, revenueRows, ratingRows] = await Promise.all([
       models.Booking.find({
         vehicleId: { $in: vehicleIds },
         status: { $in: Array.from(rideStatuses) },
@@ -506,6 +563,35 @@ module.exports = () => {
         vehicleId: { $in: vehicleIds },
         status: { $in: Array.from(maintenanceOpenStatuses) },
       }).lean(),
+      models.Booking.aggregate([
+        {
+          $match: {
+            vehicleId: { $in: vehicleIds },
+            status: "COMPLETED",
+          },
+        },
+        {
+          $group: {
+            _id: "$vehicleId",
+            revenue: { $sum: { $ifNull: ["$pricing.totalPayable", 0] } },
+            totalRides: { $sum: 1 },
+          },
+        },
+      ]),
+      models.Booking.aggregate([
+        {
+          $match: {
+            vehicleId: { $in: vehicleIds },
+            rating: { $type: "number" },
+          },
+        },
+        {
+          $group: {
+            _id: "$vehicleId",
+            averageRating: { $avg: "$rating" },
+          },
+        },
+      ]),
     ]);
 
     const lastRideByVehicleId = new Map();
@@ -520,6 +606,20 @@ module.exports = () => {
       openMaintenanceCountByVehicleId.set(key, (openMaintenanceCountByVehicleId.get(key) || 0) + 1);
     }
 
+    const revenueByVehicleId = new Map(
+      revenueRows.map((row) => [
+        String(row._id),
+        {
+          earnings: row.revenue || 0,
+          totalRides: row.totalRides || 0,
+        },
+      ]),
+    );
+
+    const ratingByVehicleId = new Map(
+      ratingRows.map((row) => [String(row._id), Math.round(Number(row.averageRating || 0) * 10) / 10]),
+    );
+
     return {
       vehicles: vehicles.map((vehicle) =>
         formatListVehicle({
@@ -527,6 +627,9 @@ module.exports = () => {
           station,
           lastRide: lastRideByVehicleId.get(String(vehicle._id)) || null,
           openMaintenanceCount: openMaintenanceCountByVehicleId.get(String(vehicle._id)) || 0,
+          earnings: revenueByVehicleId.get(String(vehicle._id))?.earnings || 0,
+          totalRides: revenueByVehicleId.get(String(vehicle._id))?.totalRides || 0,
+          rating: ratingByVehicleId.get(String(vehicle._id)) || null,
         }),
       ),
       pagination: {
@@ -641,6 +744,7 @@ module.exports = () => {
   return {
     list,
     fetchByIdLean,
+    detail,
     createDraft,
     update,
     requestRemoval,

@@ -95,10 +95,16 @@ module.exports = {
   profile: async (req, res, next) => module.exports.me(req, res, next),
 
   stations: async (req, res, next) => {
+    const ownerId = req.body.ownerId;
+    const owner = await OwnerService().fetchOwnerLeanById(ownerId);
+    const ownerLocation = owner?.settings?.location || {};
+
     const stations = await UserAppService().listStations({
-      lat: req.query.lat,
-      lng: req.query.lng,
+      lat: req.query.lat || ownerLocation.latitude || undefined,
+      lng: req.query.lng || ownerLocation.longitude || undefined,
       search: req.query.search,
+      city: req.query.city || owner?.city || ownerLocation.city || "",
+      state: req.query.state || owner?.state || ownerLocation.state || "",
     });
     req.rData = { stations };
     req.msg = "stations_list";

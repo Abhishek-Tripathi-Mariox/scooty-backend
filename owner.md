@@ -35,6 +35,7 @@ Success: returns `token` + `owner`.
 
 
 ### `GET /owner/dashboard`
+Returns `dashboard` with wallet, vehicle counts, unread notifications, `liveActivity`, and `averageRating`.
 
 ### `GET /owner/earnings`
 Returns owner earnings summary derived from booking and payout ledger entries.
@@ -131,6 +132,7 @@ Body:
 Creates a draft vehicle. `stationId` can be any active station.
 
 ### `GET /owner/vehicles/:vehicleId`
+Returns the vehicle plus `performance`, `recentRideHistory`, and `maintenanceHistory` for the detail screen.
 
 ### `PATCH /owner/vehicles/:vehicleId`
 Body (any):
