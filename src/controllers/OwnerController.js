@@ -103,8 +103,8 @@ module.exports = {
       lat: req.query.lat || ownerLocation.latitude || undefined,
       lng: req.query.lng || ownerLocation.longitude || undefined,
       search: req.query.search,
-      city: req.query.city || owner?.city || ownerLocation.city || "",
-      state: req.query.state || owner?.state || ownerLocation.state || "",
+      city: req.query.city || ownerLocation.city || owner?.city || "",
+      state: req.query.state || ownerLocation.state || owner?.state || "",
     });
     req.rData = { stations };
     req.msg = "stations_list";

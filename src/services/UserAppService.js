@@ -483,11 +483,21 @@ module.exports = () => {
         $group: {
           _id: "$stationId",
           availableScooters: { $sum: 1 },
+          averageBatteryPercent: { $avg: "$batteryPercent" },
         },
       },
     ]);
 
-    const countsMap = new Map(vehicleCounts.map((item) => [String(item._id), item.availableScooters]));
+    const countsMap = new Map(
+      vehicleCounts.map((item) => [
+        String(item._id),
+        {
+          availableScooters: item.availableScooters,
+          averageBatteryPercent:
+            item.averageBatteryPercent != null ? Math.round(item.averageBatteryPercent) : null,
+        },
+      ]),
+    );
     const hasCoordinates = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 
     const data = stations.map((station) => {
@@ -496,10 +506,12 @@ module.exports = () => {
       const distanceKm = hasCoordinates
         ? round2(haversineDistanceKm(Number(lat), Number(lng), stationLat, stationLng))
         : null;
+      const counts = countsMap.get(String(station._id)) || {};
 
       return {
         ...station,
-        availableScooters: countsMap.get(String(station._id)) || 0,
+        availableScooters: counts.availableScooters || 0,
+        averageBatteryPercent: counts.averageBatteryPercent ?? null,
         distanceKm,
       };
     });
