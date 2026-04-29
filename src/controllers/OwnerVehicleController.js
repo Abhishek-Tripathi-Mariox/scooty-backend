@@ -19,7 +19,7 @@ module.exports = {
 
   detail: async (req, res, next) => {
     const ownerId = req.body.ownerId;
-    const vehicle = await VehicleService().fetchByIdLean(ownerId, req.params.vehicleId);
+    const vehicle = await VehicleService().detail(ownerId, req.params.vehicleId);
     if (!vehicle) {
       req.rCode = 5;
       return ResponseMiddleware(req, res, next, "Vehicle not found");

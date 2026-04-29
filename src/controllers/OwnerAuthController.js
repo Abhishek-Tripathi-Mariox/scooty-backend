@@ -6,6 +6,16 @@ const AuditLogService = require("../services/AuditLogService");
 
 const normalizeMobile = (mobile) => String(mobile || "").replace(/\D/g, "");
 const normalizeText = (value) => String(value || "").trim();
+const getRoleConflictMessage = (role) => {
+  const normalizedRole = String(role || "").trim().toUpperCase();
+  if (normalizedRole === "USER") {
+    return "This mobile number is already registered as a USER account. Please use the user app.";
+  }
+  if (normalizedRole === "OWNER") {
+    return "This mobile number is already registered as an OWNER account. Please use the owner app.";
+  }
+  return `This mobile number is already registered as a ${normalizedRole || "different"} account.`;
+};
 const serializeOwner = (owner) => {
   if (!owner) return owner;
   const data = owner.toObject ? owner.toObject() : { ...owner };
@@ -13,15 +23,22 @@ const serializeOwner = (owner) => {
   return data;
 };
 
-const ensureOwnerProfile = async ({ mobile, name, address, city, companyName }) => {
+const ensureOwnerRoleAvailability = async (mobile) => {
   const service = UserService();
   const existing = await service.fetchDocByQuery({ mobile });
 
   if (existing && existing.role !== "OWNER") {
-    const err = new Error("Mobile number already registered with another role");
+    const err = new Error(getRoleConflictMessage(existing.role));
     err.code = "ROLE_CONFLICT";
     throw err;
   }
+
+  return existing;
+};
+
+const ensureOwnerProfile = async ({ mobile, name, address, city, companyName }) => {
+  const service = UserService();
+  const existing = await ensureOwnerRoleAvailability(mobile);
 
   if (!existing) {
     return await service.create({
@@ -50,8 +67,14 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "Invalid mobile number");
     }
 
-    // const otp = generateOtp();
-    const otp="1155";
+    try {
+      await ensureOwnerRoleAvailability(mobile);
+    } catch (error) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, error.message || "Unable to send OTP");
+    }
+
+    const otp = generateOtp();
     await storeOtp(`owner:${mobile}`, otp);
     await AuditLogService().create({
       actorRole: "OWNER",
@@ -124,6 +147,13 @@ module.exports = {
     }
 
     const service = UserService();
+    try {
+      await ensureOwnerRoleAvailability(mobile);
+    } catch (error) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, error.message || "Unable to verify OTP");
+    }
+
     let owner = await service.findByMobileDoc(mobile, ["OWNER"]);
     if (!owner) {
       owner = await service.create({

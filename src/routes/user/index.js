@@ -3,6 +3,7 @@ const ErrorHandle = require("../../middleware/ErrorHandleMiddleware");
 const AuthMiddleware = require("../../middleware/AuthMiddleware");
 const AuthController = require("../../controllers/AuthController");
 const UserController = require("../../controllers/UserController");
+const UserKycController = require("../../controllers/UserKycController");
 
 // Public user auth routes
 router.post("/auth/signup", ErrorHandle(AuthController.signup));
@@ -25,6 +26,10 @@ router.get("/time-slots", ErrorHandle(UserController.timeSlots));
 // Profile
 router.get("/me", ErrorHandle(UserController.profile));
 router.patch("/me", ErrorHandle(UserController.update));
+
+// KYC
+router.get("/kyc", ErrorHandle(UserKycController.get));
+router.patch("/kyc", ErrorHandle(UserKycController.submit));
 
 // Bookings
 router.post("/bookings/quote", ErrorHandle(UserController.bookingQuote));

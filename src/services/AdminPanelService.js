@@ -432,7 +432,10 @@ module.exports = () => {
 
   const updateUserKycStatus = async ({ adminId, userId, kycStatus, rejectionReason }) => {
     if (!mongoose.Types.ObjectId.isValid(String(userId || ""))) return null;
-    const user = await models.User.findOne({ _id: userId, role: "OWNER" });
+    const user = await models.User.findOne({
+      _id: userId,
+      role: { $in: ["OWNER", "USER"] },
+    });
     if (!user) return null;
 
     const normalizedStatus = String(kycStatus || "").trim().toUpperCase();
@@ -460,7 +463,7 @@ module.exports = () => {
 
     await recordAuditLog({
       actorId: adminId,
-      action: "OWNER_KYC_STATUS_UPDATED",
+      action: `${user.role}_KYC_STATUS_UPDATED`,
       entityType: "User",
       entityId: user._id,
       before,

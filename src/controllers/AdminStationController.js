@@ -12,6 +12,16 @@ const toNumber = (value) => {
 
 const escapeRegExp = (value) => String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const isValidLatitude = (value) => {
+  const n = toNumber(value);
+  return n !== null && n >= -90 && n <= 90;
+};
+
+const isValidLongitude = (value) => {
+  const n = toNumber(value);
+  return n !== null && n >= -180 && n <= 180;
+};
+
 const loadStationAdmin = async (stationAdminId) => {
   const normalizedId = String(stationAdminId || "").trim();
   if (!mongoose.Types.ObjectId.isValid(normalizedId)) return null;
@@ -61,7 +71,7 @@ module.exports = {
   },
 
   create: async (req, res, next) => {
-    const { name, address, parkingType, lat, lng, isActive, stationAdminId } = req.body || {};
+    const { name, address, city, state, parkingType, lat, lng, isActive, stationAdminId } = req.body || {};
 
     const normalizedName = String(name || "").trim();
     if (!normalizedName) {
@@ -69,12 +79,47 @@ module.exports = {
       return ResponseMiddleware(req, res, next, "name is required");
     }
 
+    if (normalizedName.length < 3) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "name must be at least 3 characters");
+    }
+
+    const normalizedAddress = String(address || "").trim();
+    if (!normalizedAddress) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "address is required");
+    }
+
+    const normalizedCity = String(city || "").trim();
+    if (!normalizedCity) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "city is required");
+    }
+
+    const normalizedState = String(state || "").trim();
+    if (!normalizedState) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "state is required");
+    }
+
+    if (!isValidLatitude(lat)) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "lat must be a valid latitude");
+    }
+
+    if (!isValidLongitude(lng)) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, "lng must be a valid longitude");
+    }
+
     const existingStation = await models.Station.findOne({
       name: { $regex: `^${escapeRegExp(normalizedName)}$`, $options: "i" },
+      city: { $regex: `^${escapeRegExp(normalizedCity)}$`, $options: "i" },
+      state: { $regex: `^${escapeRegExp(normalizedState)}$`, $options: "i" },
     }).lean();
     if (existingStation) {
       req.rCode = 0;
-      return ResponseMiddleware(req, res, next, "Station name already exists");
+      return ResponseMiddleware(req, res, next, "Station already exists for this city and state");
     }
 
     let resolvedStationAdminId = null;
@@ -97,7 +142,9 @@ module.exports = {
 
     const station = await models.Station.create({
       name: normalizedName,
-      address: String(address || "").trim(),
+      address: normalizedAddress,
+      city: normalizedCity,
+      state: normalizedState,
       stationAdminId: resolvedStationAdminId || undefined,
       parkingType: ["COVERED", "OPEN"].includes(String(parkingType || "").trim().toUpperCase())
         ? String(parkingType || "").trim().toUpperCase()
@@ -105,8 +152,8 @@ module.exports = {
       location: {
         type: "Point",
         coordinates: [
-          toNumber(lng) ?? 0,
-          toNumber(lat) ?? 0,
+          toNumber(lng),
+          toNumber(lat),
         ],
       },
       isActive: typeof isActive === "boolean" ? isActive : true,
