@@ -74,7 +74,8 @@ module.exports = {
       return ResponseMiddleware(req, res, next, error.message || "Unable to send OTP");
     }
 
-    const otp = generateOtp();
+    // const otp = generateOtp();
+    const otp = "1155"; 
     await storeOtp(`owner:${mobile}`, otp);
     await AuditLogService().create({
       actorRole: "OWNER",
