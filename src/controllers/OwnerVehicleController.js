@@ -11,10 +11,19 @@ module.exports = {
   },
 
   create: async (req, res, next) => {
-    const ownerId = req.body.ownerId;
-    const vehicle = await VehicleService().createDraft(ownerId, req.body || {}, req.files || null);
-    req.rData = { vehicle };
-    return ResponseMiddleware(req, res, next, "vehicle created");
+    try {
+      const ownerId = req.body.ownerId;
+      const vehicle = await VehicleService().createDraft(ownerId, req.body || {}, req.files || null);
+      req.rData = { vehicle };
+      return ResponseMiddleware(req, res, next, "vehicle created");
+    } catch (ex) {
+      if (ex.code === "STATION_CAPACITY_EXCEEDED") {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, ex.message);
+      }
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, ex.message || "Could not create vehicle");
+    }
   },
 
   detail: async (req, res, next) => {

@@ -40,6 +40,7 @@ router.get("/rides/history/:rideId", ErrorHandle(UserController.rideDetail));
 router.post("/bookings/:bookingId/pay", ErrorHandle(UserController.confirmPayment));
 router.post("/bookings/:bookingId/start", ErrorHandle(UserController.startRide));
 router.post("/bookings/:bookingId/complete", ErrorHandle(UserController.completeRide));
+router.post("/bookings/:bookingId/cancel", ErrorHandle(UserController.cancelBooking));
 
 // Ride history and wallet
 router.get("/rides/history", ErrorHandle(UserController.rideHistory));

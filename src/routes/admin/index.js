@@ -57,6 +57,11 @@ router.post(
   AdminAuthMiddleware().requireRole("ADMIN"),
   ErrorHandle(AdminStationController.create),
 );
+router.patch(
+  "/stations/:stationId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminStationController.update),
+);
 
 // Content moderation: ride plans
 router.get(

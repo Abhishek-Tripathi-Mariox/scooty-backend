@@ -272,6 +272,21 @@ module.exports = () => {
       const station = await validateStationId(payload.stationId);
       const stationId = station._id;
 
+      const stationCapacity = Number(station.maxVehicles || 0);
+      if (stationCapacity > 0) {
+        const existingCount = await models.Vehicle.countDocuments({
+          stationId,
+          status: { $nin: ["REMOVED"] },
+        });
+        if (existingCount >= stationCapacity) {
+          const err = new Error(
+            `This station is full (capacity ${stationCapacity}). Please choose a different station.`,
+          );
+          err.code = "STATION_CAPACITY_EXCEEDED";
+          throw err;
+        }
+      }
+
       // Ensure nested objects always exist before we touch them
       const photos =
         payload.photos && typeof payload.photos === "object" && !Array.isArray(payload.photos)
@@ -368,6 +383,23 @@ module.exports = () => {
 
       if (stationId) {
         const station = await validateStationId(stationId);
+        if (String(station._id) !== String(vehicle.stationId)) {
+          const stationCapacity = Number(station.maxVehicles || 0);
+          if (stationCapacity > 0) {
+            const existingCount = await models.Vehicle.countDocuments({
+              stationId: station._id,
+              status: { $nin: ["REMOVED"] },
+              _id: { $ne: vehicle._id },
+            });
+            if (existingCount >= stationCapacity) {
+              const err = new Error(
+                `This station is full (capacity ${stationCapacity}). Please choose a different station.`,
+              );
+              err.code = "STATION_CAPACITY_EXCEEDED";
+              throw err;
+            }
+          }
+        }
         vehicle.stationId = station._id;
       } else if (!vehicle.stationId) {
         const err = new Error("stationId is required");

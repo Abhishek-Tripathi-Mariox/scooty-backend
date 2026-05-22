@@ -476,14 +476,21 @@ module.exports = () => {
       {
         $match: {
           stationId: { $in: stationIds },
-          status: "ACTIVE",
+          status: { $nin: ["REMOVED"] },
         },
       },
       {
         $group: {
           _id: "$stationId",
-          availableScooters: { $sum: 1 },
-          averageBatteryPercent: { $avg: "$batteryPercent" },
+          totalVehicles: { $sum: 1 },
+          availableScooters: {
+            $sum: { $cond: [{ $eq: ["$status", "ACTIVE"] }, 1, 0] },
+          },
+          averageBatteryPercent: {
+            $avg: {
+              $cond: [{ $eq: ["$status", "ACTIVE"] }, "$batteryPercent", null],
+            },
+          },
         },
       },
     ]);
@@ -493,6 +500,7 @@ module.exports = () => {
         String(item._id),
         {
           availableScooters: item.availableScooters,
+          totalVehicles: item.totalVehicles,
           averageBatteryPercent:
             item.averageBatteryPercent != null ? Math.round(item.averageBatteryPercent) : null,
         },
@@ -503,15 +511,26 @@ module.exports = () => {
     const data = stations.map((station) => {
       const stationLat = Number(station.location?.coordinates?.[1] || 0);
       const stationLng = Number(station.location?.coordinates?.[0] || 0);
-      const distanceKm = hasCoordinates
+      const hasStationCoords = Number.isFinite(stationLat) && Number.isFinite(stationLng) && (stationLat !== 0 || stationLng !== 0);
+      const distanceKm = hasCoordinates && hasStationCoords
         ? round2(haversineDistanceKm(Number(lat), Number(lng), stationLat, stationLng))
         : null;
       const counts = countsMap.get(String(station._id)) || {};
+      const maxVehicles = Number(station.maxVehicles || 0);
+      const occupiedCount = counts.totalVehicles || 0;
+      const remainingCapacity = maxVehicles > 0 ? Math.max(0, maxVehicles - occupiedCount) : null;
 
       return {
         ...station,
+        coordinates: hasStationCoords
+          ? { latitude: stationLat, longitude: stationLng }
+          : null,
         availableScooters: counts.availableScooters || 0,
         averageBatteryPercent: counts.averageBatteryPercent ?? null,
+        maxVehicles: maxVehicles || null,
+        occupiedVehicles: occupiedCount,
+        remainingCapacity,
+        isFull: maxVehicles > 0 ? occupiedCount >= maxVehicles : false,
         distanceKm,
       };
     });
@@ -969,6 +988,13 @@ module.exports = () => {
 
     if (ownerId) {
       const breakdown = await finance.getBreakdown(booking);
+      const ownerCredit = round2(Number(breakdown.ownerAmount || 0));
+      if (ownerCredit > 0) {
+        await models.User.updateOne(
+          { _id: ownerId, role: "OWNER" },
+          { $inc: { walletBalance: ownerCredit } },
+        );
+      }
       await finance.recordTransaction({
         userId: ownerId,
         role: "OWNER",
@@ -1063,6 +1089,102 @@ module.exports = () => {
       before,
       after: booking.toObject(),
       meta: { durationMinutes, dropStationId: finalDropStationId },
+    });
+
+    return await fetchBooking({ userId, bookingId });
+  };
+
+  const cancelBooking = async ({ userId, bookingId, reason }) => {
+    const booking = await models.Booking.findOne({ _id: bookingId, userId });
+    if (!booking) return null;
+
+    const cancellable = ["PENDING_PAYMENT", "CONFIRMED"];
+    if (!cancellable.includes(booking.status)) {
+      const err = new Error(`Booking in status ${booking.status} cannot be cancelled`);
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+
+    const before = booking.toObject();
+    const paid =
+      booking.payment?.status === "PAID" &&
+      Number(booking.payment?.paidAmount || 0) > 0;
+    const refundAmount = paid ? round2(Number(booking.payment.paidAmount)) : 0;
+
+    booking.status = "CANCELLED";
+    booking.meta = {
+      ...(booking.meta || {}),
+      cancelledAt: new Date(),
+      cancelReason: String(reason || "").trim() || "User cancelled",
+    };
+
+    if (refundAmount > 0) {
+      booking.refund = {
+        ...(booking.refund || {}),
+        status: "PROCESSED",
+        amount: refundAmount,
+        method: "WALLET",
+        referenceId: `REF-${Date.now()}`,
+        note: "Auto-refunded on cancellation",
+      };
+      booking.payment = {
+        ...(booking.payment || {}),
+        status: "REFUNDED",
+      };
+    }
+    await booking.save();
+
+    if (booking.vehicleId) {
+      await models.Vehicle.updateOne(
+        { _id: booking.vehicleId, status: { $in: ["RESERVED", "IN_RIDE"] } },
+        { $set: { status: "ACTIVE" } },
+      );
+    }
+
+    if (refundAmount > 0) {
+      const rider = await models.User.findById(userId);
+      if (rider) {
+        rider.walletBalance = round2(Number(rider.walletBalance || 0) + refundAmount);
+        await rider.save();
+      }
+      await FinanceService().recordTransaction({
+        userId,
+        role: "USER",
+        type: "REFUND",
+        direction: "CREDIT",
+        status: "SUCCESS",
+        amount: refundAmount,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.refund?.referenceId || "",
+        description: "Refund for cancelled booking",
+        meta: { bookingId: booking._id },
+        stationId: booking.pickupStationId,
+        createdAt: new Date(),
+      });
+    }
+
+    await createNotification({
+      userId,
+      type: "RIDE",
+      title: "Booking cancelled",
+      message:
+        refundAmount > 0
+          ? `Your booking is cancelled. ${refundAmount} refunded to your wallet.`
+          : "Your booking has been cancelled.",
+      meta: { bookingId: booking._id, status: booking.status },
+    });
+
+    await AuditLogService().create({
+      actorId: userId,
+      actorRole: "USER",
+      action: "BOOKING_CANCELLED",
+      entityType: "Booking",
+      entityId: booking._id,
+      before,
+      after: booking.toObject(),
+      meta: { refundAmount, reason: booking.meta.cancelReason },
     });
 
     return await fetchBooking({ userId, bookingId });
@@ -1345,6 +1467,7 @@ module.exports = () => {
     confirmPayment,
     startRide,
     completeRide,
+    cancelBooking,
     rideHistory,
     referralSummary,
     applyReferralCode,

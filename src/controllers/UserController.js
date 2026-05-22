@@ -247,6 +247,26 @@ module.exports = {
     return ResponseMiddleware(req, res, next);
   },
 
+  cancelBooking: async (req, res, next) => {
+    try {
+      const booking = await UserAppService().cancelBooking({
+        userId: req.body.userId,
+        bookingId: req.params.bookingId,
+        reason: req.body.reason,
+      });
+      if (!booking) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Booking not found");
+      }
+      req.rData = { booking };
+      req.msg = "booking_cancelled";
+      return ResponseMiddleware(req, res, next);
+    } catch (error) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, error.message || "Unable to cancel booking");
+    }
+  },
+
   rideHistory: async (req, res, next) => {
     const rides = await UserAppService().rideHistory({
       userId: req.body.userId,

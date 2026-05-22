@@ -13,14 +13,14 @@ module.exports = () => {
   };
 
   const request = async ({ ownerId, amount }) => {
-    const n = Number(amount);
+    const n = Math.round(Number(amount) * 100) / 100;
     if (!Number.isFinite(n) || n <= 0) {
       const err = new Error("Invalid amount");
       err.code = "INVALID_AMOUNT";
       throw err;
     }
 
-    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" }).lean();
+    const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" });
     if (!owner) return null;
 
     const bank = await models.Bank.findOne({ ownerId }).lean();
@@ -30,13 +30,15 @@ module.exports = () => {
       throw err;
     }
 
-    // Optional wallet check (keep permissive if wallet system differs)
-    const wallet = Number(owner.walletBalance || 0);
-    if (wallet > 0 && n > wallet) {
+    const wallet = Math.round(Number(owner.walletBalance || 0) * 100) / 100;
+    if (n > wallet) {
       const err = new Error("Insufficient wallet balance");
       err.code = "INSUFFICIENT_BALANCE";
       throw err;
     }
+
+    owner.walletBalance = Math.round((wallet - n) * 100) / 100;
+    await owner.save();
 
     const payout = await models.PayoutRequest.create({
       userId: ownerId,

@@ -81,10 +81,35 @@ module.exports = () => {
       );
     }
 
-    // Earnings are placeholders unless ride/ledger is implemented.
-    const today = startOfDay(new Date());
-    const todayEarnings = 0;
-    const monthEarnings = 0;
+    const now = new Date();
+    const today = startOfDay(now);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const earningsAggregation = await models.Transaction.aggregate([
+      {
+        $match: {
+          userId: owner._id,
+          role: "OWNER",
+          type: "OWNER_EARNING",
+          status: "SUCCESS",
+          direction: "CREDIT",
+          createdAt: { $gte: monthStart },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          monthTotal: { $sum: "$amount" },
+          todayTotal: {
+            $sum: {
+              $cond: [{ $gte: ["$createdAt", today] }, "$amount", 0],
+            },
+          },
+        },
+      },
+    ]);
+    const earningsRow = earningsAggregation[0] || {};
+    const todayEarnings = Math.round(Number(earningsRow.todayTotal || 0) * 100) / 100;
+    const monthEarnings = Math.round(Number(earningsRow.monthTotal || 0) * 100) / 100;
 
     return {
       walletBalance: owner.walletBalance || 0,
