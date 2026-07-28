@@ -5,10 +5,10 @@ const { v4: uuidv4 } = require("uuid");
 
 require("dotenv").config();
 
-const Bucket = process.env.BUCKET;
-const Region = process.env.REGION;
-const AccessKey = process.env.ACCESSKEY;
-const SecretKey = process.env.SECRETACCESSKEY;
+const Bucket = process.env.AWS_BUCKET || process.env.BUCKET;
+const Region = process.env.AWS_REGION || process.env.REGION;
+const AccessKey = process.env.AWS_ACCESS_KEY_ID || process.env.ACCESSKEY;
+const SecretKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.SECRETACCESSKEY;
 
 // Allowed MIME types for upload
 const ALLOWED_MIME_TYPES = [
