@@ -495,6 +495,24 @@ module.exports = () => {
 
     await user.save();
 
+    if (normalizedStatus === "APPROVED" || normalizedStatus === "REJECTED") {
+      try {
+        await models.Notification.create({
+          userId: user._id,
+          type: "SYSTEM",
+          title: normalizedStatus === "APPROVED" ? "Account approved" : "KYC rejected",
+          message:
+            normalizedStatus === "APPROVED"
+              ? "Your KYC has been approved. You can now book rides."
+              : user.kycRejectionReason ||
+                "Your KYC was rejected. Please update your documents and submit again.",
+          meta: { kycStatus: normalizedStatus },
+        });
+      } catch {
+        // notification is best-effort; approval itself already succeeded
+      }
+    }
+
     await recordAuditLog({
       actorId: adminId,
       action: `${user.role}_KYC_STATUS_UPDATED`,
