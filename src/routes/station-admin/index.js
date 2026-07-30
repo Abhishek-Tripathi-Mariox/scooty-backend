@@ -39,6 +39,15 @@ router.patch("/me", ErrorHandle(StationAdminSettingsController.update));
 router.post("/change-password", ErrorHandle(StationAdminAuthController.changePassword));
 router.get("/stations", ErrorHandle(AdminStationController.list));
 router.get("/stations/:stationId", ErrorHandle(AdminStationController.detail));
+router.post(
+  "/stations",
+  (req, res, next) => {
+    // AdminStationController.create records the audit actor from adminId.
+    req.body.adminId = req.body.adminId || req.body.stationAdminId;
+    next();
+  },
+  ErrorHandle(AdminStationController.create),
+);
 
 // ---------------------------------------Dashboard
 router.get("/dashboard", ErrorHandle(StationAdminOperationsController.dashboard));

@@ -12,6 +12,7 @@ const VEHICLE_STATUS_ACTIONS = {
 };
 
 const VEHICLE_STATUSES = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
+const VEHICLE_RIDE_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"];
 const MAINTENANCE_STATUSES = new Set(["OPEN", "IN_PROGRESS", "COMPLETED", "REJECTED"]);
 const ADMIN_NOTIFICATION_TYPES = new Set(["RIDE", "EARNING", "ALERT", "SYSTEM"]);
 
@@ -41,6 +42,39 @@ const toDate = (value) => {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const formatRelativeTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes < 60) return `${diffMinutes} mins ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hours ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} days ago`;
+};
+
+const formatVehicleLastRide = (booking) => {
+  if (!booking) return null;
+  // For ongoing/upcoming rides use the start time (end time may be in the future)
+  const at =
+    booking.status === "COMPLETED"
+      ? booking.rideEndedAt || booking.endAt || booking.startAt || booking.createdAt || null
+      : booking.startAt || booking.createdAt || null;
+  return {
+    rideId: booking._id,
+    status: booking.status || "",
+    label: formatRelativeTime(at) || "N/A",
+    at,
+  };
 };
 
 const buildRange = (from, to) => {
@@ -1120,8 +1154,26 @@ module.exports = () => {
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+    const vehicleIds = vehicles.map((vehicle) => vehicle._id);
+    const lastRideByVehicleId = new Map();
+    if (vehicleIds.length) {
+      const bookings = await models.Booking.find({
+        vehicleId: { $in: vehicleIds },
+        status: { $in: VEHICLE_RIDE_STATUSES },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      for (const booking of bookings) {
+        const key = String(booking.vehicleId);
+        if (!lastRideByVehicleId.has(key)) lastRideByVehicleId.set(key, booking);
+      }
+    }
+
     return {
-      vehicles: vehicles.map(formatVehicle),
+      vehicles: vehicles.map((vehicle) => ({
+        ...formatVehicle(vehicle),
+        lastRide: formatVehicleLastRide(lastRideByVehicleId.get(String(vehicle._id))),
+      })),
       pagination: {
         page: pageNumber,
         limit: pageSize,
@@ -1302,9 +1354,26 @@ module.exports = () => {
     if (!vehicle) return null;
 
     const before = sanitizeVehicle(vehicle);
+    const previousStatus = vehicle.status;
     vehicle.status = normalizedStatus;
     if (typeof note === "string") vehicle.approvalNote = note.trim();
     await vehicle.save();
+
+    // Approving a pending scooty — let the owner know it can now be used.
+    const wasAwaitingApproval = previousStatus === "PENDING_APPROVAL" || previousStatus === "DRAFT";
+    if (wasAwaitingApproval && ["ACTIVE", "CHARGING", "INACTIVE"].includes(normalizedStatus) && vehicle.ownerId) {
+      try {
+        await models.Notification.create({
+          userId: vehicle.ownerId,
+          type: "SYSTEM",
+          title: "Scooty approved",
+          message: `${vehicle.registrationNumber || "Your scooty"} has been approved by the admin${normalizedStatus === "ACTIVE" ? " and is now active" : ""}.`,
+          meta: { vehicleId: vehicle._id, status: normalizedStatus },
+        });
+      } catch {
+        // notification is best-effort
+      }
+    }
 
     await recordAuditLog({
       actorId: adminId,

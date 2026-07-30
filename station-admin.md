@@ -78,6 +78,25 @@ Notes:
 - Returns a single station only if it is assigned to the authenticated station admin or linked to their profile.
 - `stationAdminId` is taken from the auth token context.
 
+### `POST /station-admin/stations`
+Body:
+```json
+{
+  "name": "Central Hub",
+  "address": "12 MG Road",
+  "city": "Pune",
+  "state": "Maharashtra",
+  "lat": 18.5204,
+  "lng": 73.8567,
+  "maxVehicles": 20,
+  "parkingType": "COVERED",
+  "isActive": true
+}
+```
+Notes:
+- `name`, `address`, `city`, `state`, `lat`, `lng`, and `maxVehicles` (positive integer) are required.
+- `name` must be unique per city/state (case-insensitive).
+
 ---
 
 ## Dashboard

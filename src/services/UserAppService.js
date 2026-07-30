@@ -411,6 +411,7 @@ module.exports = () => {
             modelName: booking.vehicleId.modelName,
             registrationNumber: booking.vehicleId.registrationNumber,
             imageUrl: pickVehicleImage(booking.vehicleId),
+            batteryPercent: booking.vehicleId.batteryPercent ?? null,
           }
         : undefined,
       pickupStation: booking.pickupStationId && booking.pickupStationId._id
@@ -447,7 +448,7 @@ module.exports = () => {
     }));
   };
 
-  const listStations = async ({ lat, lng, search, city, state } = {}) => {
+  const listStations = async ({ lat, lng, search, city, state, radiusKm } = {}) => {
     const query = { isActive: true };
     const andFilters = [];
     if (search) {
@@ -535,14 +536,21 @@ module.exports = () => {
       };
     });
 
-    data.sort((a, b) => {
+    // Radius filter needs both request coords and station coords to be present.
+    const radius = Number(radiusKm);
+    const result =
+      hasCoordinates && Number.isFinite(radius) && radius > 0
+        ? data.filter((station) => station.distanceKm != null && station.distanceKm <= radius)
+        : data;
+
+    result.sort((a, b) => {
       if (a.distanceKm == null && b.distanceKm == null) return 0;
       if (a.distanceKm == null) return 1;
       if (b.distanceKm == null) return -1;
       return a.distanceKm - b.distanceKm;
     });
 
-    return data;
+    return result;
   };
 
   const stationDetail = async (stationId) => {
@@ -674,7 +682,15 @@ module.exports = () => {
     if (!user) return null;
 
     const paymentMethod = String(payload.paymentMethod || "").trim();
-    const autoConfirm = paymentMethod && payload.autoConfirm !== false;
+    // Bookings always start as PENDING_PAYMENT and wait for station admin
+    // approval — the client-sent autoConfirm flag is intentionally ignored so
+    // older app versions cannot bypass the approval flow.
+    // Wallet bookings are charged immediately; cash is collected only when the
+    // ride starts, so cash payments stay PENDING until then.
+    const walletUsed = Number(quote.pricing.walletUsed || 0);
+    const totalPayable = Number(quote.pricing.totalPayable || 0);
+    const paidUpfront =
+      paymentMethod === "WALLET" && totalPayable > 0 && walletUsed >= totalPayable;
     const booking = await models.Booking.create({
       userId,
       vehicleId: quote.vehicle._id,
@@ -687,9 +703,9 @@ module.exports = () => {
       startAt: quote.startAt,
       endAt: quote.endAt,
       durationHours: quote.plan.durationHours,
-      status: autoConfirm ? "CONFIRMED" : "PENDING_PAYMENT",
+      status: "PENDING_PAYMENT",
       pricing: quote.pricing,
-      payment: autoConfirm
+      payment: paidUpfront
         ? {
             status: "PAID",
             method: paymentMethod,
@@ -765,7 +781,7 @@ module.exports = () => {
       userId,
       type: "RIDE",
       title: "Booking created",
-      message: `Your ${quote.plan.name} booking at ${quote.pickupStation.name} is ${autoConfirm ? "confirmed" : "awaiting payment"}.`,
+      message: `Your ${quote.plan.name} booking at ${quote.pickupStation.name} is awaiting station admin approval.`,
       meta: { bookingId: booking._id, status: booking.status },
     });
 
@@ -776,11 +792,11 @@ module.exports = () => {
       entityType: "Booking",
       entityId: booking._id,
       after: booking.toObject(),
-      meta: { autoConfirm, paymentMethod: paymentMethod || null },
+      meta: { paidUpfront, paymentMethod: paymentMethod || null },
     });
 
     return await models.Booking.findById(booking._id)
-      .populate("vehicleId", "modelName registrationNumber photos")
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
       .lean();
@@ -794,7 +810,7 @@ module.exports = () => {
 
     const bookings = await models.Booking.find(query)
       .sort({ createdAt: -1 })
-      .populate("vehicleId", "modelName registrationNumber photos")
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
       .lean();
@@ -805,7 +821,7 @@ module.exports = () => {
   const fetchBooking = async ({ userId, bookingId }) => {
     if (!mongoose.Types.ObjectId.isValid(String(bookingId || ""))) return null;
     const booking = await models.Booking.findOne({ _id: bookingId, userId })
-      .populate("vehicleId", "modelName registrationNumber photos")
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
       .lean();
@@ -892,6 +908,29 @@ module.exports = () => {
       throw err;
     }
 
+    // Scheduled-time enforcement: the ride can be unlocked at most 5 minutes
+    // before its scheduled start, and not after the booking window has ended.
+    const EARLY_START_MS = 5 * 60 * 1000;
+    const now = Date.now();
+    const startAtMs = booking.startAt ? new Date(booking.startAt).getTime() : NaN;
+    const endAtMs = booking.endAt ? new Date(booking.endAt).getTime() : NaN;
+
+    if (Number.isFinite(startAtMs) && now < startAtMs - EARLY_START_MS) {
+      const err = new Error(
+        `Your ride is scheduled for ${formatTime(booking.startAt)} on ${formatDateLabel(booking.startAt)}. You can start it up to 5 minutes before that time.`,
+      );
+      err.code = "RIDE_TOO_EARLY";
+      throw err;
+    }
+
+    if (Number.isFinite(endAtMs) && now > endAtMs) {
+      const err = new Error(
+        "This booking's scheduled time is over, so the ride can no longer be started. Please make a new booking.",
+      );
+      err.code = "RIDE_WINDOW_OVER";
+      throw err;
+    }
+
     const expectedCode = String(booking.unlockCode || "").trim().toUpperCase();
     const providedCode = String(unlockCode || "").trim().toUpperCase();
     if (!expectedCode || !providedCode || expectedCode !== providedCode) {
@@ -901,9 +940,50 @@ module.exports = () => {
     }
 
     const before = booking.toObject();
+
+    // Cash is collected at the station when the scooty is picked up — mark
+    // the payment PAID now and record it in finance.
+    const collectPaymentNow = booking.payment?.status !== "PAID";
+    if (collectPaymentNow) {
+      booking.payment = {
+        ...booking.payment,
+        status: "PAID",
+        method: booking.payment?.method || "CASH",
+        referenceId: booking.payment?.referenceId || `CASH-${Date.now()}`,
+        paidAmount: booking.pricing?.totalPayable || 0,
+        paidAt: new Date(),
+      };
+    }
+
     booking.status = "ACTIVE";
     booking.rideStartedAt = new Date();
     await booking.save();
+
+    if (collectPaymentNow) {
+      const finance = FinanceService();
+      await finance.recordTransaction({
+        userId,
+        role: "USER",
+        type: "BOOKING_PAYMENT",
+        direction: "DEBIT",
+        status: "SUCCESS",
+        amount: booking.pricing?.totalPayable || 0,
+        taxAmount: booking.pricing?.tax || 0,
+        sourceType: "Booking",
+        sourceId: booking._id,
+        bookingId: booking._id,
+        referenceId: booking.payment?.referenceId || "",
+        description: `Payment for ${booking.planName || booking.planCode || "ride"} booking`,
+        meta: { bookingId: booking._id },
+        stationId: booking.pickupStationId,
+        createdAt: booking.payment?.paidAt || new Date(),
+      });
+      await finance.postBookingPaymentJournal({
+        booking,
+        walletUsed: booking.pricing?.walletUsed || 0,
+        paidAmount: booking.pricing?.totalPayable || 0,
+      });
+    }
 
     await models.Vehicle.updateOne({ _id: booking.vehicleId }, { $set: { status: "IN_RIDE" } });
 
@@ -1191,7 +1271,16 @@ module.exports = () => {
   };
 
   const rideHistory = async ({ userId }) => {
-    return await listBookings({ userId, status: "COMPLETED" });
+    const bookings = await models.Booking.find({
+      userId,
+      status: { $in: ["COMPLETED", "CANCELLED"] },
+    })
+      .sort({ createdAt: -1 })
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
+      .populate("pickupStationId", "name address")
+      .populate("dropStationId", "name address")
+      .lean();
+    return bookings.map(formatBooking);
   };
 
   const referralSummary = async ({ userId }) => {
@@ -1413,7 +1502,7 @@ module.exports = () => {
 
   const bookingInvoice = async ({ userId, bookingId }) => {
     const booking = await models.Booking.findOne({ _id: bookingId, userId })
-      .populate("vehicleId", "modelName registrationNumber photos ownerId")
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent ownerId")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
       .populate("userId", "name email mobile")
@@ -1433,7 +1522,7 @@ module.exports = () => {
 
   const bookingRefund = async ({ userId, bookingId }) => {
     const booking = await models.Booking.findOne({ _id: bookingId, userId })
-      .populate("vehicleId", "modelName registrationNumber photos ownerId")
+      .populate("vehicleId", "modelName registrationNumber photos batteryPercent ownerId")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
       .lean();

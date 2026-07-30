@@ -106,6 +106,9 @@ module.exports = {
       lat: req.query.lat ?? req.query.latitude,
       lng: req.query.lng ?? req.query.longitude,
       search: req.query.search,
+      city: req.query.city,
+      state: req.query.state,
+      radiusKm: req.query.radiusKm,
     });
     req.rData = { stations };
     req.msg = "stations_list";
@@ -229,11 +232,24 @@ module.exports = {
   },
 
   completeRide: async (req, res, next) => {
+    // Parking proof photo may arrive as a multipart file upload. The upload
+    // is best-effort: if it fails (e.g. storage misconfigured), the ride
+    // still completes — just without the proof photo.
+    let parkingPhotoUrl = req.body.parkingPhotoUrl;
+    if (req.files && req.files.parkingPhoto) {
+      try {
+        const uploadRes = await fileUploadService.uploadFileToAws(req.files.parkingPhoto);
+        parkingPhotoUrl = uploadRes.images?.[0] || parkingPhotoUrl;
+      } catch (uploadError) {
+        console.error("Parking photo upload failed:", uploadError.message);
+      }
+    }
+
     const booking = await UserAppService().completeRide({
       userId: req.body.userId,
       bookingId: req.params.bookingId,
       dropStationId: req.body.dropStationId,
-      parkingPhotoUrl: req.body.parkingPhotoUrl,
+      parkingPhotoUrl,
       rating: req.body.rating,
       review: req.body.review,
     });
