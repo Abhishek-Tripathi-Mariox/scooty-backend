@@ -188,6 +188,83 @@ Optional query:
 
 ---
 
+## Booking Control
+
+### `GET /admin/bookings`
+Optional query:
+- `stationId` (omit for all stations)
+- `status`
+- `q`
+- `page`
+- `limit`
+
+### `GET /admin/bookings/:bookingId`
+
+### `PATCH /admin/bookings/:bookingId/approve`
+Body:
+```json
+{ "note": "Verified payment at counter" }
+```
+
+### `PATCH /admin/bookings/:bookingId/cancel`
+Body:
+```json
+{ "reason": "User requested cancellation" }
+```
+
+---
+
+## Ride Monitoring
+
+### `GET /admin/rides`
+Optional query:
+- `stationId` (omit for all stations)
+- `status` (defaults to CONFIRMED + ACTIVE)
+- `q`
+- `page`
+- `limit`
+
+### `GET /admin/rides/:rideId`
+
+### `POST /admin/rides/:rideId/force-end`
+Body:
+```json
+{ "note": "Vehicle abandoned" }
+```
+
+### `POST /admin/rides/:rideId/lock-vehicle`
+Body:
+```json
+{ "note": "Suspicious activity" }
+```
+
+---
+
+## Support
+
+### `GET /admin/support/tickets`
+Optional query:
+- `status`
+- `q`
+- `page`
+- `limit`
+
+### `GET /admin/support/tickets/:ticketId`
+
+### `PATCH /admin/support/tickets/:ticketId/status`
+Body:
+```json
+{ "status": "IN_PROGRESS" }
+```
+
+### `PATCH /admin/support/tickets/:ticketId/escalate`
+Body:
+```json
+{ "note": "Needs engineering review" }
+```
+
+---
+
 ## Stations
 
 ### `GET /admin/stations`
@@ -196,6 +273,8 @@ Optional query/body:
 
 Notes:
 - If `stationAdminId` is sent, the station list is filtered to stations assigned to that station admin plus the station linked to the admin profile.
+
+### `GET /admin/stations/:stationId`
 
 ### `POST /admin/stations`
 Body:

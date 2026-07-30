@@ -199,6 +199,10 @@ module.exports = {
         req.rCode = 0;
         return ResponseMiddleware(req, res, next, "Invalid status");
       }
+      if (ex.code === "VEHICLE_NOT_APPROVED") {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, ex.message);
+      }
       if (ex.code === "VEHICLE_IN_RIDE") {
         req.rCode = 0;
         return ResponseMiddleware(req, res, next, "Vehicle is currently in ride");

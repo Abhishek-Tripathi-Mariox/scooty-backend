@@ -371,20 +371,25 @@ module.exports = {
     }
 
     const stationAdminId = String(req.body.stationAdminId || req.query.stationAdminId || "").trim();
-    if (!stationAdminId) {
+    const isPlatformAdmin = req.body.adminRole === "ADMIN";
+    if (!stationAdminId && !isPlatformAdmin) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "stationAdminId is required");
     }
 
-    const stationAdmin = await loadStationAdmin(stationAdminId);
-    if (!stationAdmin) {
-      req.rCode = 5;
-      return ResponseMiddleware(req, res, next, "Station admin not found");
+    let scopeQuery = {};
+    if (stationAdminId) {
+      const stationAdmin = await loadStationAdmin(stationAdminId);
+      if (!stationAdmin) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Station admin not found");
+      }
+      scopeQuery = buildStationAdminStationQuery(stationAdmin);
     }
 
     const station = await models.Station.findOne({
       _id: stationId,
-      ...buildStationAdminStationQuery(stationAdmin),
+      ...scopeQuery,
     })
       .populate("stationAdminId", "name email mobile role stationId")
       .lean();

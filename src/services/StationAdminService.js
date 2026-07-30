@@ -88,9 +88,20 @@ const buildDateSeries = (from, to) => {
 const resolveStationScope = async ({ stationAdminId, stationId: requestedStationId = "" }) => {
   const stationAdmin = await models.User.findOne({
     _id: stationAdminId,
-    role: { $in: STATION_ADMIN_ROLES },
+    role: { $in: [...STATION_ADMIN_ROLES, "ADMIN"] },
   }).lean();
   if (!stationAdmin) return { stationAdmin: null, stationId: null };
+
+  // Platform admins operate across all stations; an explicit stationId narrows the scope.
+  if (stationAdmin.role === "ADMIN") {
+    const requested = String(requestedStationId || "").trim();
+    if (requested && !mongoose.Types.ObjectId.isValid(requested)) {
+      const err = new Error("stationId must be a valid id");
+      err.code = "INVALID_STATION";
+      throw err;
+    }
+    return { stationAdmin, stationId: requested || null };
+  }
 
   const assignedStationId = String(stationAdmin.stationId || "").trim();
   const requested = String(requestedStationId || "").trim();
@@ -117,6 +128,8 @@ const resolveStationScope = async ({ stationAdminId, stationId: requestedStation
   err.code = "STATION_NOT_ASSIGNED";
   throw err;
 };
+
+const actorRoleOf = (user) => (user && user.role === "ADMIN" ? "ADMIN" : "STATION_ADMIN");
 
 const bookingPopulate = [
   { path: "vehicleId", select: "modelName registrationNumber chassisNumber batteryPercent locationLabel status photos stationId" },
@@ -230,7 +243,7 @@ module.exports = () => {
 
     const station = stationId ? await models.Station.findById(stationId).lean() : null;
 
-    const [vehicleStatusRows, totalVehicles, activeBookings, upcomingBookings, openMaintenance, unreadNotifications, openSupportTickets, revenueRows, rideRows] =
+    const [vehicleStatusRows, totalVehicles, activeBookings, upcomingBookings, openMaintenance, unreadNotifications, openSupportTickets, revenueRows, rideRows, pendingBookings, lowBatteryVehicles] =
       await Promise.all([
         models.Vehicle.aggregate([
           { $match: { ...(stationId ? { stationId: new mongoose.Types.ObjectId(stationId) } : {}) } },
@@ -302,10 +315,56 @@ module.exports = () => {
             },
           },
         ]),
+        models.Booking.countDocuments({
+          ...(stationId ? { pickupStationId: stationId } : {}),
+          status: "PENDING_PAYMENT",
+        }),
+        models.Vehicle.countDocuments({
+          ...(stationId ? { stationId } : {}),
+          status: { $nin: ["REMOVED"] },
+          batteryPercent: { $ne: null, $lt: 20 },
+        }),
       ]);
 
     const vehicleCounts = Object.fromEntries(vehicleStatusRows.map((row) => [row._id, row.count]));
     const revenueSummary = revenueRows?.[0] || {};
+
+    const activities = (rideRows || []).map((ride) => {
+      const user = ride.user?.[0];
+      const vehicle = ride.vehicle?.[0];
+      const statusLabel = String(ride.status || "")
+        .replace(/_/g, " ")
+        .toLowerCase();
+      return {
+        type: "ride",
+        title: `${user?.name || "User"} — booking ${statusLabel}`,
+        description: `${vehicle?.modelName || "Scooty"}${vehicle?.registrationNumber ? ` (${vehicle.registrationNumber})` : ""}`,
+        time: formatDateTimeLabel(ride.createdAt),
+      };
+    });
+
+    const alerts = [];
+    if (pendingBookings > 0) {
+      alerts.push({
+        title: "Bookings awaiting approval",
+        description: `${pendingBookings} booking${pendingBookings === 1 ? " is" : "s are"} waiting in Booking Control`,
+        time: "Now",
+      });
+    }
+    if (openMaintenance > 0) {
+      alerts.push({
+        title: "Open maintenance requests",
+        description: `${openMaintenance} request${openMaintenance === 1 ? " is" : "s are"} open or in progress`,
+        time: "Now",
+      });
+    }
+    if (lowBatteryVehicles > 0) {
+      alerts.push({
+        title: "Low battery scooters",
+        description: `${lowBatteryVehicles} scooter${lowBatteryVehicles === 1 ? " is" : "s are"} below 20% battery`,
+        time: "Now",
+      });
+    }
 
     return {
       station: station
@@ -319,15 +378,25 @@ module.exports = () => {
       stats: {
         totalVehicles,
         vehiclesByStatus: vehicleCounts,
+        // Flat counts the station admin dashboard cards read directly.
+        total: totalVehicles,
+        active: vehicleCounts.ACTIVE || 0,
+        inRide: vehicleCounts.IN_RIDE || 0,
+        maintenance: vehicleCounts.MAINTENANCE || 0,
+        charging: vehicleCounts.CHARGING || 0,
         activeBookings,
         upcomingBookings,
+        pendingBookings,
         openMaintenance,
         unreadNotifications,
         openSupportTickets,
+        lowBatteryVehicles,
         totalRevenue: round2(revenueSummary.revenue || 0),
         completedRides: revenueSummary.completed || 0,
         averageRideMinutes: round2(revenueSummary.avgDuration || 0),
       },
+      activities,
+      alerts,
       liveActivity: (rideRows || []).map((ride) => ({
         id: ride._id,
         status: ride.status,
@@ -479,14 +548,9 @@ module.exports = () => {
 
     const before = booking.toObject();
     booking.status = "CONFIRMED";
-    booking.payment = {
-      ...booking.payment,
-      status: "PAID",
-      method: booking.payment?.method || "STATION_ADMIN",
-      referenceId: booking.payment?.referenceId || `SA-${Date.now()}`,
-      paidAmount: booking.pricing?.totalPayable || 0,
-      paidAt: booking.payment?.paidAt || new Date(),
-    };
+    // Payment is intentionally left untouched: wallet bookings are already
+    // PAID, and cash is marked PAID only when the ride starts and the cash
+    // is actually collected at the station.
     booking.meta = {
       ...(booking.meta || {}),
       stationAdminReviewed: true,
@@ -498,7 +562,7 @@ module.exports = () => {
 
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole: actorRoleOf(stationAdmin),
       action: "BOOKING_APPROVED",
       entityType: "Booking",
       entityId: booking._id,
@@ -523,6 +587,17 @@ module.exports = () => {
     });
     if (!booking) return null;
 
+    if (booking.status === "CANCELLED" || booking.status === "COMPLETED") {
+      const err = new Error("Booking is already " + booking.status.toLowerCase() + " and cannot be cancelled");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+    if (booking.status === "ACTIVE") {
+      const err = new Error("Ride is in progress — use Force End from Ride Monitoring instead");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+
     const before = booking.toObject();
     booking.status = "CANCELLED";
     booking.meta = {
@@ -534,9 +609,17 @@ module.exports = () => {
     };
     await booking.save();
 
+    // Free the scooty if it was reserved or mid-ride so it can be booked again.
+    if (booking.vehicleId) {
+      await models.Vehicle.updateOne(
+        { _id: booking.vehicleId, status: { $in: ["RESERVED", "IN_RIDE"] } },
+        { $set: { status: "ACTIVE" } },
+      );
+    }
+
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole: actorRoleOf(stationAdmin),
       action: "BOOKING_CANCELLED",
       entityType: "Booking",
       entityId: booking._id,
@@ -622,7 +705,7 @@ module.exports = () => {
 
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole: actorRoleOf(stationAdmin),
       action: "RIDE_FORCE_ENDED",
       entityType: "Booking",
       entityId: booking._id,
@@ -672,7 +755,7 @@ module.exports = () => {
 
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole: actorRoleOf(stationAdmin),
       action: "VEHICLE_LOCKED",
       entityType: "Vehicle",
       entityId: vehicle._id,
@@ -1003,7 +1086,7 @@ module.exports = () => {
     return ticket ? formatTicket(ticket) : null;
   };
 
-  const updateSupportTicket = async ({ stationAdminId, ticketId, status }) => {
+  const updateSupportTicket = async ({ stationAdminId, ticketId, status, actorRole = "STATION_ADMIN" }) => {
     const normalizedStatus = String(status || "").trim().toUpperCase();
     if (!SUPPORT_STATUSES.includes(normalizedStatus)) {
       const err = new Error("Invalid support ticket status");
@@ -1019,7 +1102,7 @@ module.exports = () => {
     await ticket.save();
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole,
       action: "SUPPORT_TICKET_STATUS_UPDATED",
       entityType: "SupportTicket",
       entityId: ticket._id,
@@ -1030,7 +1113,7 @@ module.exports = () => {
     return ticket.toObject();
   };
 
-  const escalateSupportTicket = async ({ stationAdminId, ticketId, note = "" }) => {
+  const escalateSupportTicket = async ({ stationAdminId, ticketId, note = "", actorRole = "STATION_ADMIN" }) => {
     const ticket = await models.SupportTicket.findById(ticketId);
     if (!ticket) return null;
 
@@ -1048,7 +1131,7 @@ module.exports = () => {
     await ticket.save();
     await AuditLogService().create({
       actorId: stationAdminId,
-      actorRole: "STATION_ADMIN",
+      actorRole,
       action: "SUPPORT_TICKET_ESCALATED",
       entityType: "SupportTicket",
       entityId: ticket._id,

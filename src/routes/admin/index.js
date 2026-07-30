@@ -11,6 +11,7 @@ const AdminPanelController = require("../../controllers/AdminPanelController");
 const AdminVehicleController = require("../../controllers/AdminVehicleController");
 const AdminMaintenanceController = require("../../controllers/AdminMaintenanceController");
 const AdminNotificationController = require("../../controllers/AdminNotificationController");
+const AdminOperationsController = require("../../controllers/AdminOperationsController");
 
 // Authentication
 router.post("/auth/login", ErrorHandle(AdminAuthController.login));
@@ -61,6 +62,11 @@ router.patch(
   "/stations/:stationId",
   AdminAuthMiddleware().requireRole("ADMIN"),
   ErrorHandle(AdminStationController.update),
+);
+router.get(
+  "/stations/:stationId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminStationController.detail),
 );
 
 // Content moderation: ride plans
@@ -215,7 +221,7 @@ router.get(
 );
 router.get(
   "/bookings/:bookingId/invoice",
-  // AdminAuthMiddleware().requirePermission("reports"),
+  AdminAuthMiddleware().requirePermission("reports"),
   ErrorHandle(AdminPanelController.bookingInvoice),
 );
 router.get(
@@ -252,6 +258,72 @@ router.get(
   "/audit-logs",
   AdminAuthMiddleware().requirePermission("audit-logs"),
   ErrorHandle(AdminPanelController.listAuditLogs),
+);
+
+// Booking control
+router.get(
+  "/bookings",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.listBookings),
+);
+router.get(
+  "/bookings/:bookingId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.bookingDetail),
+);
+router.patch(
+  "/bookings/:bookingId/approve",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.approveBooking),
+);
+router.patch(
+  "/bookings/:bookingId/cancel",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.cancelBooking),
+);
+
+// Ride monitoring
+router.get(
+  "/rides",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.listRides),
+);
+router.get(
+  "/rides/:rideId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.rideDetail),
+);
+router.post(
+  "/rides/:rideId/force-end",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.forceEndRide),
+);
+router.post(
+  "/rides/:rideId/lock-vehicle",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.lockVehicle),
+);
+
+// Support tickets
+router.get(
+  "/support/tickets",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.listSupportTickets),
+);
+router.get(
+  "/support/tickets/:ticketId",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.supportTicketDetail),
+);
+router.patch(
+  "/support/tickets/:ticketId/status",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.updateSupportTicket),
+);
+router.patch(
+  "/support/tickets/:ticketId/escalate",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.escalateSupportTicket),
 );
 
 module.exports = router;

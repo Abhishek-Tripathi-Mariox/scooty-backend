@@ -118,8 +118,12 @@ const buildStationSearchQuery = (stationId, { status, q } = {}) => {
 };
 
 const formatListVehicle = ({ vehicle, station, lastRide, openMaintenanceCount = 0, earnings = 0, rating = null, totalRides = 0 }) => {
-  const lastRideAt = lastRide?.rideEndedAt || lastRide?.endAt || lastRide?.startAt || lastRide?.createdAt || null;
   const lastRideStatus = lastRide?.status || "";
+  // For ongoing/upcoming rides use the start time (end time may be in the future)
+  const lastRideAt =
+    lastRideStatus === "COMPLETED"
+      ? lastRide?.rideEndedAt || lastRide?.endAt || lastRide?.startAt || lastRide?.createdAt || null
+      : lastRide?.startAt || lastRide?.createdAt || null;
 
   return {
     ...vehicle,
@@ -140,14 +144,7 @@ const formatListVehicle = ({ vehicle, station, lastRide, openMaintenanceCount = 
       ? {
         rideId: lastRide._id,
         status: lastRideStatus,
-          label:
-            lastRideStatus === "ACTIVE"
-              ? "Active"
-              : lastRideStatus === "CONFIRMED"
-                ? "Confirmed"
-                : lastRideStatus === "COMPLETED"
-                  ? formatRelativeTime(lastRideAt)
-                  : formatRelativeTime(lastRideAt),
+          label: formatRelativeTime(lastRideAt) || "N/A",
           at: lastRideAt,
           atLabel: formatDateTimeLabel(lastRideAt),
           riderName: lastRide.userId?.name || "",
@@ -335,7 +332,9 @@ module.exports = () => {
             ? null
             : toNumber(payload.batteryPercent, null),
         locationLabel: normalizeStr(payload.locationLabel),
-        status: "DRAFT",
+        // Station-admin-added scooters go straight into the admin approval
+        // queue; owner-app scooters stay DRAFT until the owner submits them.
+        status: payload.actorRole === "STATION_ADMIN" ? "PENDING_APPROVAL" : "DRAFT",
 
         // ✅ IMPORTANT: saving here
         photos,
@@ -749,6 +748,16 @@ module.exports = () => {
     const vehicle = await models.Vehicle.findOne({ _id: vehicleId, stationId });
     if (!vehicle) return null;
     const before = vehicle.toObject();
+
+    // A scooty must be approved by the admin before it can be made
+    // active / charging / anything operational.
+    if (vehicle.status === "DRAFT" || vehicle.status === "PENDING_APPROVAL") {
+      const err = new Error(
+        "This scooty is awaiting admin approval. It can be made active or charging only after the admin approves it.",
+      );
+      err.code = "VEHICLE_NOT_APPROVED";
+      throw err;
+    }
 
     if (vehicle.status === "IN_RIDE" && normalizedStatus !== "INACTIVE") {
       const err = new Error("Vehicle is currently in ride");
