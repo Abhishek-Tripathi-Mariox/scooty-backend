@@ -12,6 +12,21 @@ const VEHICLE_STATUS_ACTIONS = {
 };
 
 const VEHICLE_STATUSES = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
+// Statuses an admin can filter the vehicle list by (includes owner-submission states).
+const VEHICLE_FILTER_STATUSES = new Set([
+  "DRAFT",
+  "PENDING_APPROVAL",
+  "ACTIVE",
+  "IN_RIDE",
+  "MAINTENANCE",
+  "CHARGING",
+  "INACTIVE",
+  "REMOVAL_REQUESTED",
+  "REMOVED",
+]);
+// Targets allowed when updating status: the 4 admin statuses + DRAFT (used to reject
+// an owner submission back for edits).
+const VEHICLE_STATUS_TARGETS = new Set([...VEHICLE_STATUSES, "DRAFT"]);
 const VEHICLE_RIDE_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"];
 const MAINTENANCE_STATUSES = new Set(["OPEN", "IN_PROGRESS", "COMPLETED", "REJECTED"]);
 const ADMIN_NOTIFICATION_TYPES = new Set(["RIDE", "EARNING", "ALERT", "SYSTEM"]);
@@ -239,7 +254,7 @@ const buildVehicleQuery = ({ stationId, status, q } = {}) => {
   }
 
   const normalizedStatus = String(status || "").trim().toUpperCase();
-  if (normalizedStatus && VEHICLE_STATUSES.has(normalizedStatus)) {
+  if (normalizedStatus && VEHICLE_FILTER_STATUSES.has(normalizedStatus)) {
     query.status = normalizedStatus;
   }
 
@@ -1362,7 +1377,7 @@ module.exports = () => {
     if (!mongoose.Types.ObjectId.isValid(String(vehicleId || ""))) return null;
 
     const normalizedStatus = String(status || "").trim().toUpperCase();
-    if (!VEHICLE_STATUSES.has(normalizedStatus)) {
+    if (!VEHICLE_STATUS_TARGETS.has(normalizedStatus)) {
       const err = new Error("Invalid status");
       err.code = "INVALID_STATUS";
       throw err;
@@ -1386,6 +1401,21 @@ module.exports = () => {
           type: "SYSTEM",
           title: "Scooty approved",
           message: `${vehicle.registrationNumber || "Your scooty"} has been approved by the admin${normalizedStatus === "ACTIVE" ? " and is now active" : ""}.`,
+          meta: { vehicleId: vehicle._id, status: normalizedStatus },
+        });
+      } catch {
+        // notification is best-effort
+      }
+    }
+
+    // Rejecting a pending scooty back to DRAFT — tell the owner what to fix.
+    if (previousStatus === "PENDING_APPROVAL" && normalizedStatus === "DRAFT" && vehicle.ownerId) {
+      try {
+        await models.Notification.create({
+          userId: vehicle.ownerId,
+          type: "SYSTEM",
+          title: "Scooty submission rejected",
+          message: `${vehicle.registrationNumber || "Your scooty"} was not approved.${note ? ` Reason: ${note.trim()}` : " Please review the details and submit again."}`,
           meta: { vehicleId: vehicle._id, status: normalizedStatus },
         });
       } catch {

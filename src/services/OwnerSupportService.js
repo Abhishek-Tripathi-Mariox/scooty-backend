@@ -48,12 +48,36 @@ module.exports = () => {
     return await models.SupportTicket.findOne({ _id: ticketId, userId: ownerId }).lean();
   };
 
-  const listFaqs = async () => faqs();
+  // Admin-approved FAQs from the DB; static list is only a fallback when none exist yet.
+  const listFaqs = async () => {
+    const approved = await models.Faq.find({ status: "APPROVED" })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+    if (!approved.length) return faqs();
+    return approved.map((faq) => ({
+      id: String(faq._id),
+      question: faq.question,
+      answer: faq.answer,
+    }));
+  };
+
+  // Support contact shown in the owner app (Call / Email tiles). Admin can override
+  // via AdminSetting key "supportContact" -> { phone, email }.
+  const supportContact = async () => {
+    const setting = await models.AdminSetting.findOne({ key: "supportContact" }).lean();
+    const value = setting?.value || {};
+    return {
+      phone: String(value.phone || "18001234567"),
+      email: String(value.email || "support@slydomobility.com"),
+    };
+  };
 
   return {
     listTickets,
     createTicket,
     fetchTicket,
     listFaqs,
+    supportContact,
   };
 };

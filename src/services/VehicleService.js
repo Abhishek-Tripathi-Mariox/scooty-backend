@@ -190,7 +190,43 @@ module.exports = () => {
     if (!owner) return [];
     const query = { ownerId };
     if (status) query.status = status;
-    return await models.Vehicle.find(query).sort({ createdAt: -1 }).lean();
+    const vehicles = await models.Vehicle.find(query)
+      .sort({ createdAt: -1 })
+      .populate("stationId", "name address")
+      .lean();
+    if (!vehicles.length) return vehicles;
+
+    // Per-vehicle lifetime earnings + average rating so the list cards are backend-driven.
+    const vehicleIds = vehicles.map((vehicle) => vehicle._id);
+    const [revenueRows, ratingRows] = await Promise.all([
+      models.Booking.aggregate([
+        { $match: { vehicleId: { $in: vehicleIds }, status: "COMPLETED" } },
+        { $group: { _id: "$vehicleId", revenue: { $sum: { $ifNull: ["$pricing.totalPayable", 0] } } } },
+      ]),
+      models.Booking.aggregate([
+        { $match: { vehicleId: { $in: vehicleIds }, rating: { $type: "number" } } },
+        { $group: { _id: "$vehicleId", averageRating: { $avg: "$rating" } } },
+      ]),
+    ]);
+    const revenueByVehicle = new Map(revenueRows.map((row) => [String(row._id), row.revenue || 0]));
+    const ratingByVehicle = new Map(ratingRows.map((row) => [String(row._id), row.averageRating || 0]));
+
+    return vehicles.map((vehicle) => {
+      const station =
+        vehicle.stationId && typeof vehicle.stationId === "object" && vehicle.stationId._id
+          ? vehicle.stationId
+          : null;
+      const rating = ratingByVehicle.get(String(vehicle._id));
+      return {
+        ...vehicle,
+        stationId: station ? station._id : vehicle.stationId,
+        station: station
+          ? { id: station._id, name: station.name || "", address: station.address || "" }
+          : null,
+        earnings: revenueByVehicle.get(String(vehicle._id)) || 0,
+        rating: rating ? Math.round(rating * 10) / 10 : null,
+      };
+    });
   };
 
   const fetchByIdLean = async (ownerId, vehicleId) => {
@@ -320,6 +356,17 @@ module.exports = () => {
       if (rcUrl) documents.rcUrl = rcUrl;
       if (insuranceUrl) documents.insuranceUrl = insuranceUrl;
 
+      // A complete submission (basics + photos + documents + station) goes straight
+      // into the admin approval queue; DRAFT is only for incomplete ones and for
+      // submissions the admin has rejected back for edits.
+      const hasBasics =
+        normalizeStr(payload.modelName) &&
+        normalizeStr(payload.registrationNumber) &&
+        normalizeStr(payload.chassisNumber);
+      const hasPhotos = Boolean(photos.frontUrl && photos.sideUrl);
+      const hasDocs = Boolean(documents.rcUrl && documents.insuranceUrl);
+      const isComplete = Boolean(hasBasics && hasPhotos && hasDocs && stationId);
+
       // Create vehicle with photos & documents
       const vehicle = await models.Vehicle.create({
         ownerId,
@@ -332,9 +379,7 @@ module.exports = () => {
             ? null
             : toNumber(payload.batteryPercent, null),
         locationLabel: normalizeStr(payload.locationLabel),
-        // Station-admin-added scooters go straight into the admin approval
-        // queue; owner-app scooters stay DRAFT until the owner submits them.
-        status: payload.actorRole === "STATION_ADMIN" ? "PENDING_APPROVAL" : "DRAFT",
+        status: payload.actorRole === "STATION_ADMIN" || isComplete ? "PENDING_APPROVAL" : "DRAFT",
 
         // ✅ IMPORTANT: saving here
         photos,
@@ -344,7 +389,7 @@ module.exports = () => {
       await AuditLogService().create({
         actorId: ownerId,
         actorRole: payload.actorRole === "STATION_ADMIN" ? "STATION_ADMIN" : "OWNER",
-        action: "VEHICLE_DRAFT_CREATED",
+        action: vehicle.status === "PENDING_APPROVAL" ? "VEHICLE_SUBMITTED_FOR_APPROVAL" : "VEHICLE_DRAFT_CREATED",
         entityType: "Vehicle",
         entityId: vehicle._id,
         after: vehicle,
@@ -417,6 +462,28 @@ module.exports = () => {
             : toNumber(payload.batteryPercent, vehicle.batteryPercent);
       }
       if (typeof payload.locationLabel === "string") vehicle.locationLabel = payload.locationLabel.trim();
+
+      // ✅ Owner status toggle — only ACTIVE <-> MAINTENANCE, and only once the
+      // scooty has been approved (never from DRAFT / PENDING_APPROVAL / IN_RIDE).
+      const requestedStatus = String(payload.status || "").trim().toUpperCase();
+      if (requestedStatus) {
+        if (!["ACTIVE", "MAINTENANCE"].includes(requestedStatus)) {
+          const err = new Error("Invalid status");
+          err.code = "INVALID_STATUS";
+          throw err;
+        }
+        if (vehicle.status === "IN_RIDE") {
+          const err = new Error("Vehicle is currently in ride");
+          err.code = "VEHICLE_IN_RIDE";
+          throw err;
+        }
+        if (!["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"].includes(vehicle.status)) {
+          const err = new Error("This scooty is awaiting admin approval and cannot be updated yet.");
+          err.code = "VEHICLE_NOT_APPROVED";
+          throw err;
+        }
+        vehicle.status = requestedStatus;
+      }
 
       // ✅ Ensure objects exist (IMPORTANT)
       vehicle.photos =
