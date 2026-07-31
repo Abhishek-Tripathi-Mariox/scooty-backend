@@ -3,8 +3,11 @@ const OwnerSupportService = require("../services/OwnerSupportService");
 
 module.exports = {
   faqs: async (req, res, next) => {
-    const faqs = await OwnerSupportService().listFaqs();
-    req.rData = { faqs };
+    const [faqs, contact] = await Promise.all([
+      OwnerSupportService().listFaqs(),
+      OwnerSupportService().supportContact(),
+    ]);
+    req.rData = { faqs, contact };
     req.msg = "faqs_list";
     return ResponseMiddleware(req, res, next);
   },
