@@ -2,6 +2,8 @@ const { models, mongoose } = require("../models");
 const fileUploadService = require("../util/s3");
 const AuditLogService = require("./AuditLogService");
 const FinanceService = require("./FinanceService");
+const RideStartService = require("./RideStartService");
+const { resolveStationAccess } = require("../utils/stationAccess");
 
 const BOOKING_STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "ACTIVE", "COMPLETED", "CANCELLED"];
 const RIDE_STATUSES = ["CONFIRMED", "ACTIVE", "COMPLETED"];
@@ -92,41 +94,10 @@ const resolveStationScope = async ({ stationAdminId, stationId: requestedStation
   }).lean();
   if (!stationAdmin) return { stationAdmin: null, stationId: null };
 
-  // Platform admins operate across all stations; an explicit stationId narrows the scope.
-  if (stationAdmin.role === "ADMIN") {
-    const requested = String(requestedStationId || "").trim();
-    if (requested && !mongoose.Types.ObjectId.isValid(requested)) {
-      const err = new Error("stationId must be a valid id");
-      err.code = "INVALID_STATION";
-      throw err;
-    }
-    return { stationAdmin, stationId: requested || null };
-  }
-
-  const assignedStationId = String(stationAdmin.stationId || "").trim();
-  const requested = String(requestedStationId || "").trim();
-
-  if (assignedStationId) {
-    if (requested && requested !== assignedStationId) {
-      const err = new Error("station mismatch");
-      err.code = "STATION_MISMATCH";
-      throw err;
-    }
-    return { stationAdmin, stationId: assignedStationId };
-  }
-
-  if (requested) {
-    if (!mongoose.Types.ObjectId.isValid(requested)) {
-      const err = new Error("stationId must be a valid id");
-      err.code = "INVALID_STATION";
-      throw err;
-    }
-    return { stationAdmin, stationId: requested };
-  }
-
-  const err = new Error("Station not assigned to station admin");
-  err.code = "STATION_NOT_ASSIGNED";
-  throw err;
+  // Platform admins operate across all stations; station admins may act on any
+  // station they manage (User.stationId or Station.stationAdminId).
+  const stationId = await resolveStationAccess({ stationAdmin, requestedStationId });
+  return { stationAdmin, stationId };
 };
 
 const actorRoleOf = (user) => (user && user.role === "ADMIN" ? "ADMIN" : "STATION_ADMIN");
@@ -527,7 +498,13 @@ module.exports = () => {
     return booking ? formatBooking(booking) : null;
   };
 
-  const approveBooking = async ({ stationAdminId, stationId: requestedStationId = "", bookingId, note = "" }) => {
+  const approveBooking = async ({
+    stationAdminId,
+    stationId: requestedStationId = "",
+    bookingId,
+    note = "",
+    vehicleId = "",
+  }) => {
     const { stationAdmin, stationId } = await resolveStationScope({
       stationAdminId,
       stationId: requestedStationId,
@@ -545,9 +522,63 @@ module.exports = () => {
       err.code = "INVALID_BOOKING_STATUS";
       throw err;
     }
+    if (booking.status === "ACTIVE") {
+      const err = new Error("Ride is already in progress");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+
+    // Optional: the station admin picks which scooty the rider gets. It must
+    // belong to the booking's pickup station, be usable, and be free for the slot.
+    let assignedVehicle = null;
+    const requestedVehicleId = String(vehicleId || "").trim();
+    if (requestedVehicleId) {
+      if (!mongoose.Types.ObjectId.isValid(requestedVehicleId)) {
+        const err = new Error("Invalid vehicleId");
+        err.code = "INVALID_VEHICLE";
+        throw err;
+      }
+      assignedVehicle = await models.Vehicle.findOne({
+        _id: requestedVehicleId,
+        stationId: booking.pickupStationId,
+      }).lean();
+      if (!assignedVehicle) {
+        const err = new Error("Selected scooty is not at this booking's pickup station");
+        err.code = "VEHICLE_NOT_AVAILABLE";
+        throw err;
+      }
+      if (!["ACTIVE", "CHARGING"].includes(assignedVehicle.status)) {
+        const err = new Error(
+          `Selected scooty is ${String(assignedVehicle.status).replace(/_/g, " ").toLowerCase()} and cannot be assigned`,
+        );
+        err.code = "VEHICLE_NOT_AVAILABLE";
+        throw err;
+      }
+      const clash = await models.Booking.exists({
+        _id: { $ne: booking._id },
+        vehicleId: assignedVehicle._id,
+        status: { $in: ["CONFIRMED", "ACTIVE"] },
+        startAt: { $lt: booking.endAt },
+        endAt: { $gt: booking.startAt },
+      });
+      if (clash) {
+        const err = new Error("Selected scooty is already booked for this time slot");
+        err.code = "VEHICLE_CONFLICT";
+        throw err;
+      }
+    }
 
     const before = booking.toObject();
     booking.status = "CONFIRMED";
+    if (assignedVehicle) {
+      booking.vehicleId = assignedVehicle._id;
+      booking.meta = {
+        ...(booking.meta || {}),
+        vehicleAssignedByStationAdmin: true,
+        vehicleAssignedAt: new Date(),
+        previousVehicleId: before.vehicleId || null,
+      };
+    }
     // Payment is intentionally left untouched: wallet bookings are already
     // PAID, and cash is marked PAID only when the ride starts and the cash
     // is actually collected at the station.
@@ -568,7 +599,7 @@ module.exports = () => {
       entityId: booking._id,
       before,
       after: booking.toObject(),
-      meta: { stationId, note },
+      meta: { stationId, note, assignedVehicleId: assignedVehicle ? assignedVehicle._id : null },
     });
 
     return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
@@ -626,6 +657,75 @@ module.exports = () => {
       before,
       after: booking.toObject(),
       meta: { stationId, reason },
+    });
+
+    return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
+  };
+
+  // Rider shows the fixed 4-digit OTP from their app; the station admin enters it
+  // here to actually start the ride. This is the only path that moves a booking
+  // from CONFIRMED to ACTIVE.
+  const startRide = async ({ stationAdminId, stationId: requestedStationId = "", bookingId, otp = "" }) => {
+    const { stationAdmin, stationId } = await resolveStationScope({
+      stationAdminId,
+      stationId: requestedStationId,
+    });
+    if (!stationAdmin) return null;
+    if (!mongoose.Types.ObjectId.isValid(String(bookingId || ""))) return null;
+
+    const booking = await models.Booking.findOne({
+      _id: bookingId,
+      ...(stationId ? { pickupStationId: stationId } : {}),
+    }).select("+rideOtp");
+    if (!booking) return null;
+
+    if (booking.status === "ACTIVE") {
+      const err = new Error("Ride is already in progress");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+    if (booking.status === "PENDING_PAYMENT") {
+      const err = new Error("Approve the booking first, then start the ride with the rider's OTP");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+    if (booking.status !== "CONFIRMED") {
+      const err = new Error("Only confirmed bookings can be started");
+      err.code = "INVALID_BOOKING_STATUS";
+      throw err;
+    }
+
+    const endAtMs = booking.endAt ? new Date(booking.endAt).getTime() : NaN;
+    if (Number.isFinite(endAtMs) && Date.now() > endAtMs) {
+      const err = new Error("This booking's scheduled time is over, so the ride can no longer be started");
+      err.code = "RIDE_WINDOW_OVER";
+      throw err;
+    }
+
+    if (!booking.rideOtp) {
+      const err = new Error("The rider has not requested the ride OTP from the app yet");
+      err.code = "RIDE_OTP_NOT_ISSUED";
+      throw err;
+    }
+
+    const providedOtp = String(otp || "").replace(/\D/g, "");
+    if (!providedOtp || providedOtp !== String(booking.rideOtp)) {
+      booking.meta = {
+        ...(booking.meta || {}),
+        rideOtpFailedAttempts: Number(booking.meta?.rideOtpFailedAttempts || 0) + 1,
+        rideOtpLastFailedAt: new Date(),
+      };
+      await booking.save();
+      const err = new Error("Invalid OTP");
+      err.code = "INVALID_RIDE_OTP";
+      throw err;
+    }
+
+    await RideStartService().activateRide({
+      booking,
+      actorId: stationAdminId,
+      actorRole: actorRoleOf(stationAdmin),
+      meta: { stationId, rideOtpVerifiedAt: new Date() },
     });
 
     return await models.Booking.findById(booking._id).populate(bookingPopulate).lean();
@@ -692,9 +792,11 @@ module.exports = () => {
     };
     await booking.save();
 
+    // The vehicle is still registered at the pickup station at this point, so the
+    // filter must match on _id only; the drop station is what we're moving it TO.
     const vehicleStationId = booking.dropStationId || booking.pickupStationId;
     await models.Vehicle.updateOne(
-      { _id: booking.vehicleId, ...(vehicleStationId ? { stationId: vehicleStationId } : {}) },
+      { _id: booking.vehicleId },
       {
         $set: {
           status: "ACTIVE",
@@ -1389,6 +1491,7 @@ module.exports = () => {
     getBooking,
     approveBooking,
     cancelBooking,
+    startRide,
     listRides,
     forceEndRide,
     lockVehicle,

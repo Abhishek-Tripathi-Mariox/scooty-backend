@@ -1,12 +1,14 @@
 const ResponseMiddleware = require("../middleware/ResponseMiddleware");
 const VehicleService = require("../services/VehicleService");
 const UserService = require("../services/UserService");
+const { resolveStationAccess } = require("../utils/stationAccess");
 
 const statusActionMap = {
   MARK_MAINTENANCE: "MAINTENANCE",
   MARK_ACTIVE: "ACTIVE",
   ASSIGN_CHARGING: "CHARGING",
   MARK_INACTIVE: "INACTIVE",
+  REMOVE_VEHICLE: "REMOVED",
 };
 const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
 
@@ -15,24 +17,11 @@ const toInt = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const resolveStationId = (stationAdmin, req) => {
-  const requestStationId = String(req.query.stationId || req.body.stationId || "").trim();
-  const assignedStationId = String(stationAdmin?.stationId || "").trim();
-
-  if (assignedStationId) {
-    if (requestStationId && requestStationId !== assignedStationId) {
-      const err = new Error("station mismatch");
-      err.code = "STATION_MISMATCH";
-      throw err;
-    }
-    return assignedStationId;
-  }
-
-  if (requestStationId) return requestStationId;
-
-  const err = new Error("station not assigned");
-  err.code = "STATION_NOT_ASSIGNED";
-  throw err;
+// Station admins may act on any station they manage (User.stationId or
+// Station.stationAdminId); see utils/stationAccess.
+const resolveStationId = async (stationAdmin, req) => {
+  const requestedStationId = String(req.query.stationId || req.body.stationId || "").trim();
+  return resolveStationAccess({ stationAdmin, requestedStationId });
 };
 
 const loadStationAdmin = async (stationAdminId) => {
@@ -54,7 +43,7 @@ module.exports = {
 
     let stationId;
     try {
-      stationId = resolveStationId(stationAdmin, req);
+      stationId = await resolveStationId(stationAdmin, req);
     } catch (ex) {
       if (ex.code === "STATION_NOT_ASSIGNED") {
         req.rCode = 0;
@@ -88,7 +77,7 @@ module.exports = {
 
     let stationId;
     try {
-      stationId = resolveStationId(stationAdmin, req);
+      stationId = await resolveStationId(stationAdmin, req);
     } catch (ex) {
       if (ex.code === "STATION_NOT_ASSIGNED") {
         req.rCode = 0;
@@ -125,7 +114,7 @@ module.exports = {
 
     let stationId;
     try {
-      stationId = resolveStationId(stationAdmin, req);
+      stationId = await resolveStationId(stationAdmin, req);
     } catch (ex) {
       if (ex.code === "STATION_NOT_ASSIGNED") {
         req.rCode = 0;
@@ -162,7 +151,7 @@ module.exports = {
 
       let stationId;
       try {
-        stationId = resolveStationId(stationAdmin, req);
+        stationId = await resolveStationId(stationAdmin, req);
       } catch (ex) {
         if (ex.code === "STATION_NOT_ASSIGNED") {
           req.rCode = 0;
@@ -206,6 +195,10 @@ module.exports = {
       if (ex.code === "VEHICLE_IN_RIDE") {
         req.rCode = 0;
         return ResponseMiddleware(req, res, next, "Vehicle is currently in ride");
+      }
+      if (ex.code === "VEHICLE_REMOVED") {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, ex.message);
       }
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, ex.message || "Something went wrong");

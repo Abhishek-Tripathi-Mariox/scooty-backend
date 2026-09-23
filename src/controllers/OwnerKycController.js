@@ -17,10 +17,19 @@ module.exports = {
 
   submit: async (req, res, next) => {
     const ownerId = req.body.ownerId;
-    const kyc = await OwnerKycService().submitOwnerKyc({
-      ownerId,
-      files: req.files || null,
-    });
+    let kyc;
+    try {
+      kyc = await OwnerKycService().submitOwnerKyc({
+        ownerId,
+        files: req.files || null,
+      });
+    } catch (ex) {
+      if (ex.code === "KYC_DOCS_REQUIRED") {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, ex.message);
+      }
+      throw ex;
+    }
 
     if (!kyc) {
       req.rCode = 5;

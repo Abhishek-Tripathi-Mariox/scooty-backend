@@ -281,6 +281,11 @@ router.patch(
   AdminAuthMiddleware().requireRole("ADMIN"),
   ErrorHandle(AdminOperationsController.cancelBooking),
 );
+router.post(
+  "/bookings/:bookingId/start",
+  AdminAuthMiddleware().requireRole("ADMIN"),
+  ErrorHandle(AdminOperationsController.startRide),
+);
 
 // Ride monitoring
 router.get(

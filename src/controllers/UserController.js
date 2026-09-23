@@ -215,11 +215,10 @@ module.exports = {
     return ResponseMiddleware(req, res, next);
   },
 
-  startRide: async (req, res, next) => {
-    const booking = await UserAppService().startRide({
+  requestRideOtp: async (req, res, next) => {
+    const booking = await UserAppService().issueRideOtp({
       userId: req.body.userId,
       bookingId: req.params.bookingId,
-      unlockCode: req.body.unlockCode || req.body.code,
     });
     if (!booking) {
       req.rCode = 5;
@@ -227,7 +226,7 @@ module.exports = {
     }
 
     req.rData = { booking };
-    req.msg = "ride_started";
+    req.msg = "ride_otp_issued";
     return ResponseMiddleware(req, res, next);
   },
 

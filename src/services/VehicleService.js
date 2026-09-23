@@ -3,7 +3,8 @@ const fileUploadService = require("../util/s3");
 const AuditLogService = require("./AuditLogService");
 
 const normalizeStr = (v) => (typeof v === "string" ? v.trim() : "");
-const stationVehicleStatuses = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE"]);
+// Station admins may also remove a vehicle from their fleet directly (no admin approval).
+const stationVehicleStatuses = new Set(["ACTIVE", "MAINTENANCE", "CHARGING", "INACTIVE", "REMOVED"]);
 const rideStatuses = new Set(["CONFIRMED", "ACTIVE", "COMPLETED"]);
 const maintenanceOpenStatuses = new Set(["OPEN", "IN_PROGRESS"]);
 const STATION_ADMIN_ROLES = ["STATION_ADMIN", "SUB_STATION_ADMIN"];
@@ -99,7 +100,9 @@ const toNumber = (value, fallback = 0) => {
 
 const buildStationSearchQuery = (stationId, { status, q } = {}) => {
   const query = { stationId };
+  // Removed vehicles are hidden from the fleet unless explicitly requested.
   if (status) query.status = status;
+  else query.status = { $ne: "REMOVED" };
 
   const search = normalizeStr(q);
   if (search) {
@@ -816,9 +819,16 @@ module.exports = () => {
     if (!vehicle) return null;
     const before = vehicle.toObject();
 
+    if (vehicle.status === "REMOVED") {
+      const err = new Error("Vehicle has already been removed");
+      err.code = "VEHICLE_REMOVED";
+      throw err;
+    }
+
     // A scooty must be approved by the admin before it can be made
-    // active / charging / anything operational.
-    if (vehicle.status === "DRAFT" || vehicle.status === "PENDING_APPROVAL") {
+    // active / charging / anything operational. Removal is always allowed.
+    const isRemoval = normalizedStatus === "REMOVED";
+    if (!isRemoval && (vehicle.status === "DRAFT" || vehicle.status === "PENDING_APPROVAL")) {
       const err = new Error(
         "This scooty is awaiting admin approval. It can be made active or charging only after the admin approves it.",
       );
@@ -839,12 +849,12 @@ module.exports = () => {
     await vehicle.save();
     await AuditLogService().create({
       actorRole: "STATION_ADMIN",
-      action: "VEHICLE_STATUS_UPDATED",
+      action: isRemoval ? "VEHICLE_REMOVED" : "VEHICLE_STATUS_UPDATED",
       entityType: "Vehicle",
       entityId: vehicle._id,
       before,
       after: vehicle.toObject(),
-      meta: { stationId, status: normalizedStatus },
+      meta: { stationId, status: normalizedStatus, previousStatus: before.status },
     });
     return vehicle.toObject();
   };

@@ -13,7 +13,8 @@ module.exports = () => {
       verifiedAt: owner.kycVerifiedAt || null,
       documents: {
         profilePhotoUrl: owner.profilePhotoUrl || "",
-        adharFile: owner.adharFile || "",
+        adharFile: owner.adharFile || "", // Aadhaar front
+        adharBackFile: owner.adharBackFile || "",
         panFile: owner.panFile || "",
       },
     };
@@ -23,19 +24,32 @@ module.exports = () => {
     const owner = await models.User.findOne({ _id: ownerId, role: "OWNER" });
     if (!owner) return null;
 
-    if (files) {
-      if (files.profilePhoto) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.profilePhoto);
-        owner.profilePhotoUrl = uploadRes.images?.[0] || owner.profilePhotoUrl;
-      }
-      if (files.adharFile) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.adharFile);
-        owner.adharFile = uploadRes.images?.[0] || owner.adharFile;
-      }
-      if (files.panFile) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.panFile);
-        owner.panFile = uploadRes.images?.[0] || owner.panFile;
-      }
+    // Owner KYC: Aadhaar front + back, PAN and profile photo are mandatory.
+    // No driving licence for owners. `adharFrontFile` is an alias of `adharFile`.
+    const uploads = [
+      ["profilePhotoUrl", files?.profilePhoto],
+      ["adharFile", files?.adharFile || files?.adharFrontFile],
+      ["adharBackFile", files?.adharBackFile],
+      ["panFile", files?.panFile],
+    ];
+    for (const [field, file] of uploads) {
+      if (!file) continue;
+      const uploadRes = await fileUploadService.uploadFileToAws(file);
+      owner[field] = uploadRes.images?.[0] || owner[field];
+    }
+
+    const missing = [
+      ["adharFile", "Aadhaar card (front)"],
+      ["adharBackFile", "Aadhaar card (back)"],
+      ["panFile", "PAN card"],
+      ["profilePhotoUrl", "Profile photo"],
+    ]
+      .filter(([field]) => !owner[field])
+      .map(([, label]) => label);
+    if (missing.length) {
+      const err = new Error(`Please upload: ${missing.join(", ")}`);
+      err.code = "KYC_DOCS_REQUIRED";
+      throw err;
     }
 
     owner.kycStatus = "PENDING";
