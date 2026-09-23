@@ -39,8 +39,10 @@ const UserSchema = new mongoose.Schema(
     companyName: { type: String },
 
     //documents...
-    adharFile: { type: String },
-    panFile: { type: String },
+    adharFile: { type: String }, // Aadhaar front (riders + owners)
+    adharBackFile: { type: String }, // Aadhaar back (riders)
+    drivingLicenseFile: { type: String }, // driving licence (riders)
+    panFile: { type: String }, // optional for riders, required for owners
     // Owner KYC
     kycStatus: {
       type: String,

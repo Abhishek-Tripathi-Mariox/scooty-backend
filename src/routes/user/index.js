@@ -38,7 +38,8 @@ router.get("/bookings", ErrorHandle(UserController.bookings));
 router.get("/bookings/:bookingId", ErrorHandle(UserController.bookingDetail));
 router.get("/rides/history/:rideId", ErrorHandle(UserController.rideDetail));
 router.post("/bookings/:bookingId/pay", ErrorHandle(UserController.confirmPayment));
-router.post("/bookings/:bookingId/start", ErrorHandle(UserController.startRide));
+// Ride start is done by the station admin with the OTP shown to the rider here.
+router.post("/bookings/:bookingId/ride-otp", ErrorHandle(UserController.requestRideOtp));
 router.post("/bookings/:bookingId/complete", ErrorHandle(UserController.completeRide));
 router.post("/bookings/:bookingId/cancel", ErrorHandle(UserController.cancelBooking));
 

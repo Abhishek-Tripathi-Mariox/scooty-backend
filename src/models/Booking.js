@@ -83,6 +83,11 @@ const BookingSchema = new mongoose.Schema(
       note: { type: String, default: "" },
     },
     unlockCode: { type: String, default: "" },
+    // Fixed 4-digit ride-start OTP. Issued once when the rider taps "Start Ride";
+    // the rider tells it to the station admin, who enters it in the panel.
+    // Hidden from queries by default so it never leaks into admin/station lists.
+    rideOtp: { type: String, default: "", select: false },
+    rideOtpIssuedAt: { type: Date },
     parkingPhotoUrl: { type: String, default: "" },
     rating: { type: Number, min: 1, max: 5 },
     review: { type: String, default: "" },

@@ -39,6 +39,7 @@ module.exports = {
         stationId: req.body.stationId || req.query.stationId,
         bookingId: req.params.bookingId,
         note: req.body.note,
+        vehicleId: req.body.vehicleId,
       });
       if (!booking) {
         req.rCode = 5;
@@ -47,6 +48,28 @@ module.exports = {
 
       req.rData = { booking };
       req.msg = "booking_approved";
+      return ResponseMiddleware(req, res, next);
+    } catch (ex) {
+      req.rCode = 0;
+      return ResponseMiddleware(req, res, next, ex.message || "Invalid request");
+    }
+  },
+
+  startRide: async (req, res, next) => {
+    try {
+      const booking = await StationAdminService().startRide({
+        stationAdminId: req.body.adminId,
+        stationId: req.body.stationId || req.query.stationId,
+        bookingId: req.params.bookingId,
+        otp: req.body.otp,
+      });
+      if (!booking) {
+        req.rCode = 5;
+        return ResponseMiddleware(req, res, next, "Booking not found");
+      }
+
+      req.rData = { booking };
+      req.msg = "ride_started";
       return ResponseMiddleware(req, res, next);
     } catch (ex) {
       req.rCode = 0;

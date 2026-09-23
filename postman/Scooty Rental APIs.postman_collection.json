@@ -299,7 +299,7 @@
               }
             },
             {
-              "name": "Start Ride",
+              "name": "Request Ride OTP",
               "request": {
                 "method": "POST",
                 "header": [
@@ -307,20 +307,12 @@
                     "key": "Authorization",
                     "value": "Bearer {{userToken}}",
                     "type": "text"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json",
-                    "type": "text"
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/start"
+                  "raw": "{{baseUrl}}/user/bookings/{{bookingId}}/ride-otp"
                 },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"unlockCode\": \"MV-ABC123\"\n}"
-                }
+                "description": "Issues the fixed 4-digit ride OTP for a CONFIRMED booking (allowed from 5 minutes before the slot until it ends). The rider tells this OTP to the station admin, who starts the ride from the panel."
               }
             },
             {
@@ -2490,6 +2482,31 @@
                 ],
                 "url": {
                   "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/approve"
+                }
+              }
+            },
+            {
+              "name": "Start Ride (verify rider OTP)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{stationAdminToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/station-admin/bookings/{{bookingId}}/start"
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"otp\": \"1234\"\n}"
                 }
               }
             },

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { models, mongoose } = require("../models");
 const ContentService = require("./ContentService");
 const AuditLogService = require("./AuditLogService");
@@ -809,6 +810,7 @@ module.exports = () => {
     }
 
     const bookings = await models.Booking.find(query)
+      .select("+rideOtp")
       .sort({ createdAt: -1 })
       .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
       .populate("pickupStationId", "name address")
@@ -821,6 +823,7 @@ module.exports = () => {
   const fetchBooking = async ({ userId, bookingId }) => {
     if (!mongoose.Types.ObjectId.isValid(String(bookingId || ""))) return null;
     const booking = await models.Booking.findOne({ _id: bookingId, userId })
+      .select("+rideOtp")
       .populate("vehicleId", "modelName registrationNumber photos batteryPercent")
       .populate("pickupStationId", "name address")
       .populate("dropStationId", "name address")
@@ -898,18 +901,26 @@ module.exports = () => {
     return await fetchBooking({ userId, bookingId });
   };
 
-  const startRide = async ({ userId, bookingId, unlockCode }) => {
-    const booking = await models.Booking.findOne({ _id: bookingId, userId });
+  // The rider no longer starts the ride from the app. They request a fixed
+  // 4-digit OTP here, tell it to the station admin at pickup, and the admin
+  // starts the ride from the panel (StationAdminService.startRide).
+  const issueRideOtp = async ({ userId, bookingId }) => {
+    if (!mongoose.Types.ObjectId.isValid(String(bookingId || ""))) return null;
+    const booking = await models.Booking.findOne({ _id: bookingId, userId }).select("+rideOtp");
     if (!booking) return null;
 
     if (booking.status !== "CONFIRMED") {
-      const err = new Error("Only confirmed bookings can be started");
+      const err = new Error(
+        booking.status === "PENDING_PAYMENT"
+          ? "Booking is still waiting for station admin approval"
+          : "Only confirmed bookings can be started",
+      );
       err.code = "INVALID_BOOKING_STATUS";
       throw err;
     }
 
-    // Scheduled-time enforcement: the ride can be unlocked at most 5 minutes
-    // before its scheduled start, and not after the booking window has ended.
+    // Scheduled-time enforcement: the OTP can be requested at most 5 minutes
+    // before the scheduled start, and not after the booking window has ended.
     const EARLY_START_MS = 5 * 60 * 1000;
     const now = Date.now();
     const startAtMs = booking.startAt ? new Date(booking.startAt).getTime() : NaN;
@@ -931,79 +942,21 @@ module.exports = () => {
       throw err;
     }
 
-    const expectedCode = String(booking.unlockCode || "").trim().toUpperCase();
-    const providedCode = String(unlockCode || "").trim().toUpperCase();
-    if (!expectedCode || !providedCode || expectedCode !== providedCode) {
-      const err = new Error("Invalid unlock code");
-      err.code = "INVALID_UNLOCK_CODE";
-      throw err;
-    }
+    // The OTP is fixed for the life of the booking: generate once, never rotate.
+    if (!booking.rideOtp) {
+      booking.rideOtp = String(crypto.randomInt(0, 10000)).padStart(4, "0");
+      booking.rideOtpIssuedAt = new Date();
+      await booking.save();
 
-    const before = booking.toObject();
-
-    // Cash is collected at the station when the scooty is picked up — mark
-    // the payment PAID now and record it in finance.
-    const collectPaymentNow = booking.payment?.status !== "PAID";
-    if (collectPaymentNow) {
-      booking.payment = {
-        ...booking.payment,
-        status: "PAID",
-        method: booking.payment?.method || "CASH",
-        referenceId: booking.payment?.referenceId || `CASH-${Date.now()}`,
-        paidAmount: booking.pricing?.totalPayable || 0,
-        paidAt: new Date(),
-      };
-    }
-
-    booking.status = "ACTIVE";
-    booking.rideStartedAt = new Date();
-    await booking.save();
-
-    if (collectPaymentNow) {
-      const finance = FinanceService();
-      await finance.recordTransaction({
-        userId,
-        role: "USER",
-        type: "BOOKING_PAYMENT",
-        direction: "DEBIT",
-        status: "SUCCESS",
-        amount: booking.pricing?.totalPayable || 0,
-        taxAmount: booking.pricing?.tax || 0,
-        sourceType: "Booking",
-        sourceId: booking._id,
-        bookingId: booking._id,
-        referenceId: booking.payment?.referenceId || "",
-        description: `Payment for ${booking.planName || booking.planCode || "ride"} booking`,
+      await AuditLogService().create({
+        actorId: userId,
+        actorRole: "USER",
+        action: "RIDE_OTP_ISSUED",
+        entityType: "Booking",
+        entityId: booking._id,
         meta: { bookingId: booking._id },
-        stationId: booking.pickupStationId,
-        createdAt: booking.payment?.paidAt || new Date(),
-      });
-      await finance.postBookingPaymentJournal({
-        booking,
-        walletUsed: booking.pricing?.walletUsed || 0,
-        paidAmount: booking.pricing?.totalPayable || 0,
       });
     }
-
-    await models.Vehicle.updateOne({ _id: booking.vehicleId }, { $set: { status: "IN_RIDE" } });
-
-    await createNotification({
-      userId,
-      type: "RIDE",
-      title: "Ride started",
-      message: "Your scooty ride has started. Ride safe.",
-      meta: { bookingId: booking._id },
-    });
-
-    await AuditLogService().create({
-      actorId: userId,
-      actorRole: "USER",
-      action: "RIDE_STARTED",
-      entityType: "Booking",
-      entityId: booking._id,
-      before,
-      after: booking.toObject(),
-    });
 
     return await fetchBooking({ userId, bookingId });
   };
@@ -1554,7 +1507,7 @@ module.exports = () => {
     fetchBooking,
     rideDetail,
     confirmPayment,
-    startRide,
+    issueRideOtp,
     completeRide,
     cancelBooking,
     rideHistory,

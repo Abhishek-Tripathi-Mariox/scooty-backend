@@ -4,16 +4,40 @@ require("dotenv").config();
 const url = process.env.REDIS_URL;
 const logger = console;
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+let redisUnavailableLogged = false;
+
 const client = redis.createClient({
   url: url,
+  socket: {
+    connectTimeout: 5000,
+    // Retry a few times with backoff, then stop so a missing local Redis
+    // doesn't spam the console forever. OTP/cache helpers already fall back
+    // to in-memory / no-cache when the client is not open.
+    reconnectStrategy: (retries) => {
+      if (retries >= MAX_RECONNECT_ATTEMPTS) {
+        if (!redisUnavailableLogged) {
+          redisUnavailableLogged = true;
+          console.warn(
+            `Redis unavailable at ${url} after ${MAX_RECONNECT_ATTEMPTS} attempts - continuing without Redis (in-memory OTP, no cache)`,
+          );
+        }
+        return false; // stop reconnecting
+      }
+      return Math.min(retries * 500, 3000);
+    },
+  },
 });
 
 client.on("connect", () => {
+  redisUnavailableLogged = false;
   console.log("Connected to Redis server");
 });
 
 client.on("error", (err) => {
-  console.error("Error connecting to Redis server", { error: err.message });
+  if (!redisUnavailableLogged) {
+    console.error("Error connecting to Redis server", { error: err.message });
+  }
 });
 
 (async () => {

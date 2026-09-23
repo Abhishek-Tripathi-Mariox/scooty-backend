@@ -90,6 +90,7 @@ router.get("/bookings", ErrorHandle(StationAdminOperationsController.listBooking
 router.get("/bookings/:bookingId", ErrorHandle(StationAdminOperationsController.bookingDetail));
 router.patch("/bookings/:bookingId/approve", ErrorHandle(StationAdminOperationsController.approveBooking));
 router.patch("/bookings/:bookingId/cancel", ErrorHandle(StationAdminOperationsController.cancelBooking));
+router.post("/bookings/:bookingId/start", ErrorHandle(StationAdminOperationsController.startRide));
 
 // ---------------------------------------Ride monitoring
 router.get("/rides", ErrorHandle(StationAdminOperationsController.listRides));

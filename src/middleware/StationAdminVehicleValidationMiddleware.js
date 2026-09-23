@@ -17,6 +17,7 @@ const allowedActions = [
   "MARK_ACTIVE",
   "ASSIGN_CHARGING",
   "MARK_INACTIVE",
+  "REMOVE_VEHICLE",
 ];
 
 const isObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || "").trim());

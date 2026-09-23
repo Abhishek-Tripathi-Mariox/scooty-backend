@@ -256,6 +256,9 @@ const buildVehicleQuery = ({ stationId, status, q } = {}) => {
   const normalizedStatus = String(status || "").trim().toUpperCase();
   if (normalizedStatus && VEHICLE_FILTER_STATUSES.has(normalizedStatus)) {
     query.status = normalizedStatus;
+  } else {
+    // Removed vehicles are hidden from the fleet unless explicitly filtered for.
+    query.status = { $ne: "REMOVED" };
   }
 
   const search = String(q || "").trim();
@@ -336,7 +339,7 @@ module.exports = () => {
       models.User.countDocuments({ isActive: true }),
       models.User.countDocuments({ isActive: false }),
       models.Station.countDocuments({}),
-      models.Vehicle.countDocuments({}),
+      models.Vehicle.countDocuments({ status: { $ne: "REMOVED" } }),
       models.Booking.countDocuments(bookingDateFilter),
       models.Booking.countDocuments(todayFilter),
       models.Booking.aggregate([

@@ -13,8 +13,10 @@ module.exports = () => {
       verifiedAt: user.kycVerifiedAt || null,
       documents: {
         profilePhotoUrl: user.profilePhotoUrl || "",
-        adharFile: user.adharFile || "",
-        panFile: user.panFile || "",
+        adharFile: user.adharFile || "", // Aadhaar front
+        adharBackFile: user.adharBackFile || "",
+        drivingLicenseFile: user.drivingLicenseFile || "",
+        panFile: user.panFile || "", // optional
       },
     };
   };
@@ -23,19 +25,34 @@ module.exports = () => {
     const user = await models.User.findOne({ _id: userId, role: "USER" });
     if (!user) return null;
 
-    if (files) {
-      if (files.profilePhoto) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.profilePhoto);
-        user.profilePhotoUrl = uploadRes.images?.[0] || user.profilePhotoUrl;
-      }
-      if (files.adharFile) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.adharFile);
-        user.adharFile = uploadRes.images?.[0] || user.adharFile;
-      }
-      if (files.panFile) {
-        const uploadRes = await fileUploadService.uploadFileToAws(files.panFile);
-        user.panFile = uploadRes.images?.[0] || user.panFile;
-      }
+    // Rider KYC: Aadhaar front + back, driving licence and profile photo are
+    // mandatory; PAN is optional. `adharFrontFile` is accepted as an alias of
+    // `adharFile` (the front side).
+    const uploads = [
+      ["profilePhotoUrl", files?.profilePhoto],
+      ["adharFile", files?.adharFile || files?.adharFrontFile],
+      ["adharBackFile", files?.adharBackFile],
+      ["drivingLicenseFile", files?.drivingLicenseFile],
+      ["panFile", files?.panFile],
+    ];
+    for (const [field, file] of uploads) {
+      if (!file) continue;
+      const uploadRes = await fileUploadService.uploadFileToAws(file);
+      user[field] = uploadRes.images?.[0] || user[field];
+    }
+
+    const missing = [
+      ["adharFile", "Aadhaar card (front)"],
+      ["adharBackFile", "Aadhaar card (back)"],
+      ["drivingLicenseFile", "Driving license"],
+      ["profilePhotoUrl", "Profile photo"],
+    ]
+      .filter(([field]) => !user[field])
+      .map(([, label]) => label);
+    if (missing.length) {
+      const err = new Error(`Please upload: ${missing.join(", ")}`);
+      err.code = "KYC_DOCS_REQUIRED";
+      throw err;
     }
 
     user.kycStatus = "PENDING";
