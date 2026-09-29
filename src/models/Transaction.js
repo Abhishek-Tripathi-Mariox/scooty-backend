@@ -22,6 +22,7 @@ const TransactionSchema = new mongoose.Schema(
         "WALLET_CREDIT",
         "REFERRAL_BONUS",
         "OWNER_EARNING",
+        "STATION_EARNING",
         "PLATFORM_COMMISSION",
         "GST_COLLECTION",
         "PAYOUT_REQUEST",

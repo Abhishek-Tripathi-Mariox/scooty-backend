@@ -34,6 +34,33 @@ const mergeDateTime = (dateValue, timeValue) => {
   return new Date(`${datePart}T${timePart}:00`);
 };
 
+// A ride may start at any minute inside this daily window (clock time, same
+// frame as mergeDateTime). The rider app reads these from the time-slots API.
+const BOOKING_OPEN_TIME = "06:00";
+const BOOKING_CLOSE_TIME = "22:30";
+const BOOKING_MINUTE_STEP = 1;
+
+const toClockMinutes = (timeValue) => {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(timeValue || "").trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
+const toClockTime = (date) =>
+  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+const formatClockLabel = (timeValue) => {
+  const total = toClockMinutes(timeValue);
+  if (total == null) return String(timeValue || "");
+  const hours = Math.floor(total / 60);
+  const minutes = String(total % 60).padStart(2, "0");
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour12}:${minutes} ${hours >= 12 ? "PM" : "AM"}`;
+};
+
 const formatTime = (date) =>
   new Date(date).toLocaleTimeString("en-IN", {
     hour: "2-digit",
@@ -282,6 +309,19 @@ module.exports = () => {
     if (!startAt || Number.isNaN(startAt.getTime())) {
       const err = new Error("Valid date and startTime are required");
       err.code = "INVALID_START_TIME";
+      throw err;
+    }
+
+    const startMinutes = toClockMinutes(startTime);
+    if (
+      startMinutes == null ||
+      startMinutes < toClockMinutes(BOOKING_OPEN_TIME) ||
+      startMinutes > toClockMinutes(BOOKING_CLOSE_TIME)
+    ) {
+      const err = new Error(
+        `Rides can start between ${formatClockLabel(BOOKING_OPEN_TIME)} and ${formatClockLabel(BOOKING_CLOSE_TIME)}`,
+      );
+      err.code = "OUTSIDE_BOOKING_HOURS";
       throw err;
     }
 
@@ -624,10 +664,30 @@ module.exports = () => {
       }
     }
 
+    // First bookable minute of that date: the opening time, or the next full
+    // minute when the day is already running. Null when the day is over.
+    const openAt = mergeDateTime(normalizedDate, BOOKING_OPEN_TIME);
+    const closeAt = mergeDateTime(normalizedDate, BOOKING_CLOSE_TIME);
+    let earliestTime = null;
+    if (openAt && closeAt && !Number.isNaN(openAt.getTime()) && !Number.isNaN(closeAt.getTime())) {
+      const nextMinute = new Date(Math.ceil(now / 60000) * 60000);
+      const earliestAt = nextMinute.getTime() > openAt.getTime() ? nextMinute : openAt;
+      if (earliestAt.getTime() <= closeAt.getTime()) {
+        earliestTime = toClockTime(earliestAt);
+      }
+    }
+
     return {
       date: normalizedDate,
       plan,
+      // Half-hour list kept for app versions that still render fixed slots.
       slots,
+      window: {
+        openTime: BOOKING_OPEN_TIME,
+        closeTime: BOOKING_CLOSE_TIME,
+        earliestTime,
+        minuteStep: BOOKING_MINUTE_STEP,
+      },
     };
   };
 
@@ -1022,13 +1082,14 @@ module.exports = () => {
     if (ownerId) {
       const breakdown = await finance.getBreakdown(booking);
       const ownerCredit = round2(Number(breakdown.ownerAmount || 0));
+      // Owner share only exists for owner-listed scooties (0 for the Slydo fleet).
       if (ownerCredit > 0) {
         await models.User.updateOne(
           { _id: ownerId, role: "OWNER" },
           { $inc: { walletBalance: ownerCredit } },
         );
       }
-      await finance.recordTransaction({
+      if (ownerCredit > 0) await finance.recordTransaction({
         userId: ownerId,
         role: "OWNER",
         type: "OWNER_EARNING",
@@ -1071,6 +1132,32 @@ module.exports = () => {
         stationId: booking.pickupStationId,
         createdAt: endedAt,
       });
+
+      // Station's share of the ride (both plans). Booked against the station
+      // admin when one is assigned, so it shows in that panel's transactions.
+      const stationShare = round2(Number(breakdown.stationAmount || 0));
+      if (stationShare > 0) {
+        const pickupStation = await models.Station.findById(booking.pickupStationId).select("stationAdminId").lean();
+        await finance.recordTransaction({
+          userId: pickupStation?.stationAdminId || userId,
+          role: "STATION_ADMIN",
+          type: "STATION_EARNING",
+          direction: "CREDIT",
+          status: "SUCCESS",
+          amount: stationShare,
+          commissionAmount: breakdown.platformAmount,
+          ownerAmount: breakdown.ownerAmount,
+          platformAmount: breakdown.platformAmount,
+          sourceType: "Booking",
+          sourceId: booking._id,
+          bookingId: booking._id,
+          referenceId: booking.payment?.referenceId || "",
+          description: `Station share for ${booking.planName || booking.planCode || "ride"} (${breakdown.ownershipType === "SLYDO" ? "Slydo fleet" : "owner listed"})`,
+          meta: { bookingId: booking._id, ownerId, ownershipType: breakdown.ownershipType, plan: breakdown.plan },
+          stationId: booking.pickupStationId,
+          createdAt: endedAt,
+        });
+      }
 
       await finance.recordTransaction({
         userId: userId,

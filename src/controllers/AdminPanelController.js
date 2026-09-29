@@ -130,10 +130,19 @@ module.exports = {
   },
 
   updateCommission: async (req, res, next) => {
-    const commission = await AdminPanelService().updateCommission({
-      adminId: req.body.adminId,
-      payload: req.body || {},
-    });
+    let commission;
+    try {
+      commission = await AdminPanelService().updateCommission({
+        adminId: req.body.adminId,
+        payload: req.body || {},
+      });
+    } catch (ex) {
+      if (ex.code === "INVALID_COMMISSION") {
+        req.rCode = 0;
+        return ResponseMiddleware(req, res, next, ex.message);
+      }
+      throw ex;
+    }
     req.rData = { commission };
     return ResponseMiddleware(req, res, next, "commission updated successfully");
   },
