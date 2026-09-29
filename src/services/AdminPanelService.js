@@ -42,10 +42,46 @@ const DEFAULT_PRICING = {
   taxPercent: 18,
 };
 
+
+// Commission plan (editable by the super admin under Finance > Commission):
+//   slydoOwned  — company fleet: Admin + Station
+//   ownerListed — individual owner's scooty: Owner + Admin + Station
+// Each plan must total 100%. Legacy flat keys are kept in sync with the
+// owner-listed plan so older readers keep working.
 const DEFAULT_COMMISSION = {
+  slydoOwned: { adminPercent: 20, stationPercent: 80 },
+  ownerListed: { ownerPercent: 60, adminPercent: 20, stationPercent: 20 },
   platformCommissionPercent: 20,
-  ownerSharePercent: 80,
-  franchiseSharePercent: 0,
+  ownerSharePercent: 60,
+  franchiseSharePercent: 20,
+};
+
+const pct = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n * 100) / 100)) : fallback;
+};
+
+const normalizeCommission = (raw = {}) => {
+  const legacyOwner = raw.ownerSharePercent;
+  const legacyAdmin = raw.platformCommissionPercent;
+  const legacyStation = raw.franchiseSharePercent;
+  const ownerListed = {
+    ownerPercent: pct(raw.ownerListed?.ownerPercent ?? legacyOwner, DEFAULT_COMMISSION.ownerListed.ownerPercent),
+    adminPercent: pct(raw.ownerListed?.adminPercent ?? legacyAdmin, DEFAULT_COMMISSION.ownerListed.adminPercent),
+    stationPercent: pct(raw.ownerListed?.stationPercent ?? legacyStation, DEFAULT_COMMISSION.ownerListed.stationPercent),
+  };
+  const slydoOwned = {
+    adminPercent: pct(raw.slydoOwned?.adminPercent, DEFAULT_COMMISSION.slydoOwned.adminPercent),
+    stationPercent: pct(raw.slydoOwned?.stationPercent, DEFAULT_COMMISSION.slydoOwned.stationPercent),
+  };
+  return {
+    slydoOwned,
+    ownerListed,
+    platformCommissionPercent: ownerListed.adminPercent,
+    ownerSharePercent: ownerListed.ownerPercent,
+    franchiseSharePercent: ownerListed.stationPercent,
+    updatedAt: raw.updatedAt || null,
+  };
 };
 
 const toInt = (value, fallback) => {
@@ -607,26 +643,44 @@ module.exports = () => {
   };
 
   const getCommission = async () => {
-    return await getSetting("commission", DEFAULT_COMMISSION);
+    return normalizeCommission(await getSetting("commission", DEFAULT_COMMISSION));
   };
 
-  const updateCommission = async ({ adminId, payload }) => {
-    const current = await getSetting("commission", DEFAULT_COMMISSION);
-    const value = {
-      ...DEFAULT_COMMISSION,
-      ...current,
-    };
+  const updateCommission = async ({ adminId, payload = {} }) => {
+    const current = normalizeCommission(await getSetting("commission", DEFAULT_COMMISSION));
 
-    if (payload.platformCommissionPercent !== undefined) {
-      value.platformCommissionPercent = normalizeNumber(payload.platformCommissionPercent, 0, 0);
+    // Accept the new nested shape, or the legacy flat keys (mapped onto the
+    // owner-listed plan). Anything not sent keeps its current value.
+    const merged = normalizeCommission({
+      slydoOwned: { ...current.slydoOwned, ...(payload.slydoOwned || {}) },
+      ownerListed: {
+        ...current.ownerListed,
+        ...(payload.platformCommissionPercent !== undefined ? { adminPercent: payload.platformCommissionPercent } : {}),
+        ...(payload.ownerSharePercent !== undefined ? { ownerPercent: payload.ownerSharePercent } : {}),
+        ...(payload.franchiseSharePercent !== undefined ? { stationPercent: payload.franchiseSharePercent } : {}),
+        ...(payload.ownerListed || {}),
+      },
+    });
+
+    const sum = (parts) => Math.round(parts.reduce((total, n) => total + Number(n || 0), 0) * 100) / 100;
+    const slydoTotal = sum([merged.slydoOwned.adminPercent, merged.slydoOwned.stationPercent]);
+    const ownerTotal = sum([
+      merged.ownerListed.ownerPercent,
+      merged.ownerListed.adminPercent,
+      merged.ownerListed.stationPercent,
+    ]);
+    if (Math.abs(slydoTotal - 100) > 0.01) {
+      const err = new Error(`Slydo-owned plan must total 100% (currently ${slydoTotal}%)`);
+      err.code = "INVALID_COMMISSION";
+      throw err;
     }
-    if (payload.ownerSharePercent !== undefined) {
-      value.ownerSharePercent = normalizeNumber(payload.ownerSharePercent, 0, 0);
-    }
-    if (payload.franchiseSharePercent !== undefined) {
-      value.franchiseSharePercent = normalizeNumber(payload.franchiseSharePercent, 0, 0);
+    if (Math.abs(ownerTotal - 100) > 0.01) {
+      const err = new Error(`Owner-listed plan must total 100% (currently ${ownerTotal}%)`);
+      err.code = "INVALID_COMMISSION";
+      throw err;
     }
 
+    const value = { ...merged, updatedAt: new Date() };
     await upsertSetting({ key: "commission", value, updatedBy: adminId });
     await recordAuditLog({
       actorId: adminId,
@@ -1251,6 +1305,9 @@ module.exports = () => {
           ? null
           : Number(payload.batteryPercent),
       locationLabel: String(payload.locationLabel || station.name || "").trim(),
+      // Company fleet vs. individual owner's scooty (decides the commission plan)
+      ownershipType:
+        String(payload.ownershipType || "").trim().toUpperCase() === "SLYDO" ? "SLYDO" : "OWNER",
       status: VEHICLE_STATUSES.has(String(payload.status || "").trim().toUpperCase())
         ? String(payload.status || "").trim().toUpperCase()
         : "DRAFT",

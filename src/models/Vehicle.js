@@ -9,6 +9,9 @@ const VehicleSchema = new mongoose.Schema(
       index: true,
     },
     stationId: { type: mongoose.Schema.Types.ObjectId, ref: "Station", index: true },
+    // Who owns the scooty. Drives the commission plan applied on ride completion:
+    // SLYDO = company fleet (admin + station split), OWNER = listed by an individual owner.
+    ownershipType: { type: String, enum: ["OWNER", "SLYDO"], default: "OWNER", index: true },
 
     modelName: { type: String, default: "" },
     registrationNumber: { type: String, default: "", index: true },

@@ -2,10 +2,46 @@ const { models, mongoose } = require("../models");
 const LedgerService = require("./LedgerService");
 const { buildPdfBuffer } = require("../util/pdf");
 
+
+// Commission plan (editable by the super admin under Finance > Commission):
+//   slydoOwned  — company fleet: Admin + Station
+//   ownerListed — individual owner's scooty: Owner + Admin + Station
+// Each plan must total 100%. Legacy flat keys are kept in sync with the
+// owner-listed plan so older readers keep working.
 const DEFAULT_COMMISSION = {
+  slydoOwned: { adminPercent: 20, stationPercent: 80 },
+  ownerListed: { ownerPercent: 60, adminPercent: 20, stationPercent: 20 },
   platformCommissionPercent: 20,
-  ownerSharePercent: 80,
-  franchiseSharePercent: 0,
+  ownerSharePercent: 60,
+  franchiseSharePercent: 20,
+};
+
+const pct = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n * 100) / 100)) : fallback;
+};
+
+const normalizeCommission = (raw = {}) => {
+  const legacyOwner = raw.ownerSharePercent;
+  const legacyAdmin = raw.platformCommissionPercent;
+  const legacyStation = raw.franchiseSharePercent;
+  const ownerListed = {
+    ownerPercent: pct(raw.ownerListed?.ownerPercent ?? legacyOwner, DEFAULT_COMMISSION.ownerListed.ownerPercent),
+    adminPercent: pct(raw.ownerListed?.adminPercent ?? legacyAdmin, DEFAULT_COMMISSION.ownerListed.adminPercent),
+    stationPercent: pct(raw.ownerListed?.stationPercent ?? legacyStation, DEFAULT_COMMISSION.ownerListed.stationPercent),
+  };
+  const slydoOwned = {
+    adminPercent: pct(raw.slydoOwned?.adminPercent, DEFAULT_COMMISSION.slydoOwned.adminPercent),
+    stationPercent: pct(raw.slydoOwned?.stationPercent, DEFAULT_COMMISSION.slydoOwned.stationPercent),
+  };
+  return {
+    slydoOwned,
+    ownerListed,
+    platformCommissionPercent: ownerListed.adminPercent,
+    ownerSharePercent: ownerListed.ownerPercent,
+    franchiseSharePercent: ownerListed.stationPercent,
+    updatedAt: raw.updatedAt || null,
+  };
 };
 
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
@@ -73,7 +109,20 @@ const normalizeTransaction = (transaction) => {
 
 const resolveCommission = async () => {
   const setting = await models.AdminSetting.findOne({ key: "commission" }).lean();
-  return { ...DEFAULT_COMMISSION, ...(setting?.value || {}) };
+  return normalizeCommission(setting?.value || {});
+};
+
+// SLYDO for the company fleet, OWNER for listed scooties. Accepts a populated
+// vehicle, a vehicle id, or nothing (falls back to OWNER).
+const resolveOwnershipType = async (booking) => {
+  const vehicleRef = booking?.vehicleId;
+  if (vehicleRef && typeof vehicleRef === "object" && vehicleRef.ownershipType) {
+    return vehicleRef.ownershipType === "SLYDO" ? "SLYDO" : "OWNER";
+  }
+  const vehicleId = vehicleRef && typeof vehicleRef === "object" ? vehicleRef._id : vehicleRef;
+  if (!vehicleId || !mongoose.Types.ObjectId.isValid(String(vehicleId))) return "OWNER";
+  const vehicle = await models.Vehicle.findById(vehicleId).select("ownershipType").lean();
+  return vehicle?.ownershipType === "SLYDO" ? "SLYDO" : "OWNER";
 };
 
 const resolvePricing = async () => {
@@ -104,23 +153,37 @@ const calculatePenalty = async ({ booking, actualDurationMinutes = null, pricing
   };
 };
 
+// Splits the ride revenue (fare + convenience fee - discount; deposit and GST
+// excluded) according to the commission plan for the scooty's ownership type.
 const getBreakdown = async (booking) => {
   const commission = await resolveCommission();
+  const ownershipType = await resolveOwnershipType(booking);
+  const plan = ownershipType === "SLYDO" ? commission.slydoOwned : commission.ownerListed;
   const pricing = booking.pricing || {};
   const rideRevenue = round2(
     Math.max(0, Number(pricing.baseFare || 0) + Number(pricing.convenienceFee || 0) - Number(pricing.discount || 0)),
   );
-  const platformAmount = round2(Math.min(rideRevenue, rideRevenue * (Number(commission.platformCommissionPercent || 0) / 100)));
-  const ownerAmount = round2(
-    Math.min(rideRevenue - platformAmount, rideRevenue * (Number(commission.ownerSharePercent || 0) / 100)),
-  );
-  const franchiseAmount = round2(Math.max(0, rideRevenue - ownerAmount - platformAmount));
+
+  const ownerPercent = ownershipType === "SLYDO" ? 0 : Number(plan.ownerPercent || 0);
+  const adminPercent = Number(plan.adminPercent || 0);
+  const ownerAmount = round2(rideRevenue * (ownerPercent / 100));
+  const platformAmount = round2(rideRevenue * (adminPercent / 100));
+  // Station takes the remainder so rounding never loses or invents a paisa.
+  const stationAmount = round2(Math.max(0, rideRevenue - ownerAmount - platformAmount));
 
   return {
     rideRevenue,
+    ownershipType,
+    plan: {
+      ownerPercent,
+      adminPercent,
+      stationPercent: Number(plan.stationPercent || 0),
+    },
     platformAmount,
     ownerAmount,
-    franchiseAmount,
+    stationAmount,
+    // legacy name kept for older readers (invoice PDFs, reports)
+    franchiseAmount: stationAmount,
     taxAmount: round2(Number(pricing.tax || 0)),
   };
 };
@@ -132,6 +195,7 @@ const ACCOUNT_CODES = {
   OWNER_PAYABLE: { code: "OWNER_PAYABLE", name: "Owner Payable", type: "LIABILITY" },
   PLATFORM_REVENUE: { code: "PLATFORM_REVENUE", name: "Platform Revenue", type: "REVENUE" },
   FRANCHISE_REVENUE: { code: "FRANCHISE_REVENUE", name: "Franchise Revenue", type: "REVENUE" },
+  STATION_REVENUE: { code: "STATION_REVENUE", name: "Station Revenue", type: "REVENUE" },
   GST_PAYABLE: { code: "GST_PAYABLE", name: "GST Payable", type: "LIABILITY" },
   SECURITY_DEPOSIT_HOLD: { code: "SECURITY_DEPOSIT_HOLD", name: "Security Deposit Hold", type: "LIABILITY" },
 };
@@ -231,7 +295,7 @@ module.exports = () => {
     const securityDeposit = round2(Number(booking.pricing?.securityDeposit || 0));
     const ownerAmount = round2(Number(breakdown.ownerAmount || 0));
     const platformAmount = round2(Number(breakdown.platformAmount || 0));
-    const franchiseAmount = round2(Number(breakdown.franchiseAmount || 0));
+    const stationAmount = round2(Number(breakdown.stationAmount ?? breakdown.franchiseAmount ?? 0));
     const taxAmount = round2(Number(breakdown.taxAmount || 0));
     const totalPayable = round2(Number(booking.pricing?.totalPayable || 0));
 
@@ -268,13 +332,13 @@ module.exports = () => {
               note: "Platform commission",
             }]
           : []),
-        ...(franchiseAmount > 0
+        ...(stationAmount > 0
           ? [{
-              accountCode: ACCOUNT_CODES.FRANCHISE_REVENUE.code,
-              accountName: ACCOUNT_CODES.FRANCHISE_REVENUE.name,
-              accountType: ACCOUNT_CODES.FRANCHISE_REVENUE.type,
+              accountCode: ACCOUNT_CODES.STATION_REVENUE.code,
+              accountName: ACCOUNT_CODES.STATION_REVENUE.name,
+              accountType: ACCOUNT_CODES.STATION_REVENUE.type,
               direction: "CREDIT",
-              amount: franchiseAmount,
+              amount: stationAmount,
               note: "Franchise share",
             }]
           : []),
@@ -486,7 +550,7 @@ module.exports = () => {
       `Ride Revenue: ${invoice.breakdown?.rideRevenue || 0}`,
       `Owner Amount: ${invoice.breakdown?.ownerAmount || 0}`,
       `Platform Amount: ${invoice.breakdown?.platformAmount || 0}`,
-      `Franchise Amount: ${invoice.breakdown?.franchiseAmount || 0}`,
+      `Station Amount: ${invoice.breakdown?.stationAmount ?? invoice.breakdown?.franchiseAmount ?? 0}`,
       `GST Amount: ${invoice.breakdown?.taxAmount || 0}`,
     ];
     return buildPdfBuffer({
@@ -610,8 +674,11 @@ module.exports = () => {
       ],
       breakdown: {
         rideRevenue: breakdown.rideRevenue,
+        ownershipType: breakdown.ownershipType,
+        plan: breakdown.plan,
         platformAmount: breakdown.platformAmount,
         ownerAmount: breakdown.ownerAmount,
+        stationAmount: breakdown.stationAmount,
         franchiseAmount: breakdown.franchiseAmount,
         taxAmount: breakdown.taxAmount,
       },
