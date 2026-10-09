@@ -21,9 +21,14 @@ const haversineDistanceKm = (lat1, lng1, lat2, lng2) => {
   return earthRadiusKm * c;
 };
 
+// Booking dates and clock times are India time, whatever timezone the server runs in.
+const BOOKING_UTC_OFFSET = "+05:30";
+const BOOKING_UTC_OFFSET_MS = 330 * 60 * 1000;
+const toBookingClock = (date) => new Date(new Date(date).getTime() + BOOKING_UTC_OFFSET_MS);
+
 const normalizeDateInput = (value) => {
   if (!value) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) return toBookingClock(value).toISOString().slice(0, 10);
   return String(value).trim().slice(0, 10);
 };
 
@@ -31,13 +36,14 @@ const mergeDateTime = (dateValue, timeValue) => {
   const datePart = normalizeDateInput(dateValue);
   const timePart = String(timeValue || "").trim();
   if (!datePart || !/^\d{2}:\d{2}$/.test(timePart)) return null;
-  return new Date(`${datePart}T${timePart}:00`);
+  return new Date(`${datePart}T${timePart}:00${BOOKING_UTC_OFFSET}`);
 };
 
-// A ride may start at any minute inside this daily window (clock time, same
-// frame as mergeDateTime). The rider app reads these from the time-slots API.
-const BOOKING_OPEN_TIME = "06:00";
-const BOOKING_CLOSE_TIME = "22:30";
+// A ride may start at any minute of the day (India clock time, same frame as
+// mergeDateTime); only times already passed are blocked. The rider app reads
+// these from the time-slots API.
+const BOOKING_OPEN_TIME = "00:00";
+const BOOKING_CLOSE_TIME = "23:59";
 const BOOKING_MINUTE_STEP = 1;
 
 const toClockMinutes = (timeValue) => {
@@ -49,8 +55,7 @@ const toClockMinutes = (timeValue) => {
   return hours * 60 + minutes;
 };
 
-const toClockTime = (date) =>
-  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+const toClockTime = (date) => toBookingClock(date).toISOString().slice(11, 16);
 
 const formatClockLabel = (timeValue) => {
   const total = toClockMinutes(timeValue);
@@ -649,7 +654,7 @@ module.exports = () => {
     const slots = [];
     const now = Date.now();
 
-    for (let hour = 6; hour <= 22; hour += 1) {
+    for (let hour = 0; hour <= 23; hour += 1) {
       for (const minute of [0, 30]) {
         const hh = String(hour).padStart(2, "0");
         const mm = String(minute).padStart(2, "0");

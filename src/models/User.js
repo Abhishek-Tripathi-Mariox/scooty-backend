@@ -13,7 +13,8 @@ const UserSchema = new mongoose.Schema(
     // Common profile
     name: { type: String ,default: "" },
     email: { type: String, unique: true, sparse: true, index: true },
-    mobile: { type: String, unique: true, sparse: true, index: true ,default: "" },
+    // Unique per role (see index below): a rider and an owner may share a number.
+    mobile: { type: String, index: true ,default: "" },
     profilePhotoUrl: { type: String },
     isActive: { type: Boolean, default: true },
     city:{type:String,default:""},
@@ -83,6 +84,13 @@ const UserSchema = new mongoose.Schema(
     },
   },
   { timestamps: true },
+);
+
+// A number is unique within a role, so one person can have both a rider and an
+// owner account. Empty mobiles (email-only admins) are left out of the check.
+UserSchema.index(
+  { mobile: 1, role: 1 },
+  { unique: true, partialFilterExpression: { mobile: { $type: "string", $gt: "" } } },
 );
 
 module.exports = mongoose.model("User", UserSchema);
