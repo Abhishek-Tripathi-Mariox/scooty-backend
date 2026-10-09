@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed:admin": "node scripts/seedAdmin.js",
+    "migrate:mobile-role-index": "node scripts/migrateMobileRoleIndex.js",
     "test": "node -c index.js && node -c src/routes/index.js"
   },
   "keywords": [],

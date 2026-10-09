@@ -6,16 +6,6 @@ const AuditLogService = require("../services/AuditLogService");
 
 const normalizeMobile = (mobile) => String(mobile || "").replace(/\D/g, "");
 const normalizeText = (value) => String(value || "").trim();
-const getRoleConflictMessage = (role) => {
-  const normalizedRole = String(role || "").trim().toUpperCase();
-  if (normalizedRole === "OWNER") {
-    return "This mobile number is already registered as an OWNER account. Please use the owner app.";
-  }
-  if (normalizedRole === "USER") {
-    return "This mobile number is already registered as a USER account. Please use the user app.";
-  }
-  return `This mobile number is already registered as a ${normalizedRole || "different"} account.`;
-};
 const serializeUser = (user) => {
   if (!user) return user;
   const data = user.toObject ? user.toObject() : { ...user };
@@ -23,22 +13,13 @@ const serializeUser = (user) => {
   return data;
 };
 
-const ensureUserRoleAvailability = async (mobile) => {
-  const userService = UserService();
-  const existing = await userService.fetchDocByQuery({ mobile });
-
-  if (existing && existing.role !== "USER") {
-    const err = new Error(getRoleConflictMessage(existing.role));
-    err.code = "ROLE_CONFLICT";
-    throw err;
-  }
-
-  return existing;
-};
+// One number can hold a rider account and an owner account side by side;
+// the rider app only ever looks at the USER account for that number.
+const findRiderAccount = (mobile) => UserService().findByMobileDoc(mobile, ["USER"]);
 
 const ensureUserProfile = async ({ mobile, name, address, city }) => {
   const userService = UserService();
-  const existing = await ensureUserRoleAvailability(mobile);
+  const existing = await findRiderAccount(mobile);
 
   if (!existing) {
     return await userService.create({
@@ -63,13 +44,6 @@ module.exports = {
     if (!mobile || mobile.length < 10) {
       req.rCode = 0;
       return ResponseMiddleware(req, res, next, "Invalid mobile number");
-    }
-
-    try {
-      await ensureUserRoleAvailability(mobile);
-    } catch (error) {
-      req.rCode = 0;
-      return ResponseMiddleware(req, res, next, error.message || "Unable to send OTP");
     }
 
     // const otp = generateOtp();
@@ -149,14 +123,7 @@ module.exports = {
     }
 
     const userService = UserService();
-    try {
-      await ensureUserRoleAvailability(mobile);
-    } catch (error) {
-      req.rCode = 0;
-      return ResponseMiddleware(req, res, next, error.message || "Unable to verify OTP");
-    }
-
-    let user = await userService.fetchDocByQuery({ mobile });
+    let user = await findRiderAccount(mobile);
     if (!user) {
       user = await userService.create({
         mobile,
