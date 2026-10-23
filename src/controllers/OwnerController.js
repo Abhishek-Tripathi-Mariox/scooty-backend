@@ -103,8 +103,10 @@ module.exports = {
       lat: req.query.lat || ownerLocation.latitude || undefined,
       lng: req.query.lng || ownerLocation.longitude || undefined,
       search: req.query.search,
-      city: req.query.city || ownerLocation.city || owner?.city || "",
-      state: req.query.state || ownerLocation.state || owner?.state || "",
+      // Owners may assign a vehicle to any active station, so the owner's own
+      // city/state is not used as a filter — only explicit query params are.
+      city: req.query.city || "",
+      state: req.query.state || "",
     });
     req.rData = { stations };
     req.msg = "stations_list";
